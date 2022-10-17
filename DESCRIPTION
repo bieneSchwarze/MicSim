@@ -1,0 +1,18 @@
+Package: MicSim
+Type: Package
+Title: Performing Continuous-Time Microsimulation 
+Version: 2.0.0
+Date: 2022-11-01
+Author: Sabine Zinn
+Maintainer: Sabine Zinn <szinn@diw.de>
+Contributors: Claudio Bosco <Claudio.BOSCO@ec.europa.eu>, Maurizio Teobaldelli <Maurizio.TEOBALDELLI@ext.ec.europa.eu>
+Description: This toolkit allows performing continuous-time microsimulation for a wide range of life science (demography, social sciences, epidemiology) applications. Individual life-courses are specified by a continuous-time multi-state model. 
+LazyData: true
+Depends: R (>= 4.0.1), snowfall, rlecuyer
+License: GPL-2
+Suggests: 
+    rmarkdown,
+    knitr, 
+    glue
+VignetteBuilder: knitr
+Encoding: UTF-8
