@@ -7,6 +7,7 @@
    \item There is now an initial check in the package to see whether the input data is in the right format and the rates required to run the simulation are available for the complete simulation horizon and along all ages considered.
    \item A vignette has been added to show the capabilities of the package for running large-scale simulation applications. The example of the vignette has been designed by researchers of the Eureopean Commission. It is on the modelling and simulation of migration flows within Europe. They are now added as contributors to the MicSim package. They have also tested and checked the code of the package to remove bugs.
    \item The example section of the `micSim' function has been extended by another more complex example to highlight the versality of the package. 
+   \item It is possible with this new version to define which parts of the initial population and/or migrant population go to which CPUs/cores when conducting parallel computing.
   }
 }
 

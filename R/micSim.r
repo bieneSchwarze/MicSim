@@ -644,7 +644,7 @@ micSimParallel <- function(initPop=NULL, immigrPop=NULL, initPopList = c(), immi
   mL <- cores - sum(unlist((lapply(immigrPopList, is.na))))
     
   sfInit(parallel=T,cpus=cores,slaveOutfile="output.txt")        
-  sfExportAll(debug=TRUE)  
+  sfExportAll(debug=FALSE)  
   sfClusterSetupRNGstream(seed=(rep(seeds,35)[1:length(cores)]))
   myPar <- function(itt){ 
   #cat('Starting thread: ',itt,'\n')   

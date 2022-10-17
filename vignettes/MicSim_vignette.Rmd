@@ -14,8 +14,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-The example data on migration between Spain, Sweden and the Netherlands has been prepared by Claudio Bosco (European Commission), Daniela Ghio (European Commission), Maurizio Teobaldelli (European Commission) and Sabine Zinn (German Socio-Oeconomic Panel, Humboldt University Berlin). As data source EUROSTAT data has been used. By purpose the example has been designed to be small. MicSim can also handle a larger size of cases but to be efficient concerning rumn times this requires a bit more computational power with more CPUs. 
-
+The sample data on migration between Spain, Sweden and the Netherlands were prepared by Claudio Bosco (European Commission), Daniela Ghio (European Commission), Maurizio Teobaldelli (European Commission) and Sabine Zinn (German Socio-Economic Panel, Humboldt University Berlin). EUROSTAT data were used as the data source. The sample was intentionally kept small. MicSim can also handle larger numbers of cases, but to be efficient in terms of run times, this requires a bit more computing power with more CPUs. 
 ```{r}
 # Load library
 library(MicSim)
@@ -46,12 +45,12 @@ absStates <- c("dead","rest")
 
 ### Definition of initial population and newborn characteristics
 ```{r setup}
-# initial population
+# initial population included in the MicSim package
 initPop <- initPopMigrExp
 head(initPop)
 
 # population of immigrants entering to virtual population over simulation time
-immigrPop <-immigrPopMigrExp 
+immigrPop <- immigrPopMigrExp # included in the MicSim package
 head(immigrPop)
 
 # Definition of initial states for newborns
@@ -65,9 +64,10 @@ initStatesProb <- c(0.5151,0.4849, # probabilities for female / male newborns fo
 ```
 
 ### Rates Definition
-Beware: Rates have to be given at least for age [0,maxAge-1] and for all years within the simulation horizon. 
+Beware: Rates have to be given at least for age [0,maxAge) and for all years within the simulation horizon.
+At this the exact value of *maxAge* is excluded, i.e. here 100.00 but not e.g. age=99.9999. 
 ```{r}
-# Load rates from external data (one column for one transition)
+# Load rates from data included in the MicSim package (one column for one transition)
 rates <- migrExpRates
 
 # Define function to easily transform rates in function format required by MicSim 
@@ -337,15 +337,15 @@ For running this you have to remove the comment signs in the beginning of each l
 Give as many seeds as you use cores. That way you can replicate your results.
 ```{r}
 
-#cores <- 3
-#seeds <- c(34,145,97)
-#pop <- micSimParallel(initPop=initPop, immigrPop=immigrPop,
-#                      transitionMatrix=transitionMatrix, absStates=absStates,
-#                      varInitStates=varInitStates, initStatesProb=initStatesProb,
-#                      fixInitStates=fixInitStates,
-#                      maxAge=maxAge, simHorizon=simHorizon,fertTr=fertTr,
-#                      cores=cores, seeds=seeds)
-
+cores <- 3
+seeds <- c(34,145,97)
+pop <- micSimParallel(initPop=initPop, immigrPop=immigrPop,
+                      transitionMatrix=transitionMatrix, absStates=absStates,
+                      varInitStates=varInitStates, initStatesProb=initStatesProb,
+                      fixInitStates=fixInitStates,
+                      maxAge=maxAge, simHorizon=simHorizon,fertTr=fertTr,
+                      cores=cores, seeds=seeds)
+head(pop)
 ```
 
 
