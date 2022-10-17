@@ -333,8 +333,7 @@ head(popWide)
 
 ### Run Simulation with parallel computing on several cores
 Try this to speed up your simulation run. The more cores you can use the faster the simulation will be executed.
-For running this you have to remove the comment signs in the beginning of each line. This example uses three cores.
-Give as many seeds as you use cores. That way you can replicate your results.
+This example uses three cores. Give as many seeds as you use cores. That way you can replicate your results.
 ```{r}
 
 cores <- 3
