@@ -15,9 +15,9 @@ micSimParallel(initPop=NULL, immigrPop=NULL, initPopList= c(),
 
 \item{immigrPop}{Data frame comprising information about the immigrants entering the population across simulation time.}
 
-\item{initPopList}{TBD = to be determined}
+\item{initPopList}{A list of matrices, where each matrix represents a subset of initial population.}
 
-\item{immigrPopList}{TBD = to be determined}
+\item{immigrPopList}{A list of matrices, where each matrix represents a subset of the immigrant population.}
 
 \item{transitionMatrix}{A matrix indicating the transition pattern and the names of the functions determining the respective transition rates (with rates to be returned as vectors,
 i.e. for input age 0 to 10 eleven rate values have to be returned).}
@@ -30,7 +30,7 @@ i.e. for input age 0 to 10 eleven rate values have to be returned).}
 If \code{fixInitStates} are given (i.e. attributes from the mother are inherited), these probabilities have to sum to one conditioned on the inherited attributes,
 i.e. for each (set of) inherited attribute(s) separately. Otherwise, the sum of \code{initStatesProb} has to be one.}
 
-\item{fixInitStates}{(Vector of) Indices of subStates determining the attributes/subStates that a newborn will be taken over from the mother. If empty or not defined, no attributes will be inherited.}
+\item{fixInitStates}{(Vector of) Indices of SubStates determining the attributes/subStates that a newborn will be taken over from the mother. If empty or not defined, no attributes will be inherited.}
 
 \item{maxAge}{A scalar indicating the exact maximal age (i.e., sharp 100.00 years) which an individual can reach during simulation. \code{maxAge} has to be greater than zero.}
 
@@ -46,11 +46,17 @@ If transition to elementary school is not defined (see below under 'details') an
 \item{seeds}{To ensure that the results are replicable and are therefore reasonable, the user should always assign a seed to each PRNG (pseudo random number generator) representation used.}
 }
 \value{
-TBD = to be determined
+A matrix representing the combined population after running the simulation in parallel.
+Each row corresponds to an individual, and columns represent different attributes or states of the individuals.
+The function ensures that unique IDs are assigned to newborns and that the final output is ordered correctly by these IDs.
+This matrix includes the results of the simulations for all subsets of the initial and immigrant populations processed across different cores.
 }
 \description{
 Performs a continuous-time microsimulation run (sequentially, i.e., using only one CPU core).
 }
 \details{
-TBD = to be determined
+The \code{micSimParallel} function is designed to perform population simulations in parallel using multiple processing cores.
+This function is particularly useful for large-scale simulations where computational efficiency is crucial.
+The function takes an initial population and an immigrant population, both of which can be provided as single matrices or as lists of matrices for parallel processing.
+If the populations are provided as lists, each element of the list is processed by a different core, allowing for efficient distribution of the computational load.
 }

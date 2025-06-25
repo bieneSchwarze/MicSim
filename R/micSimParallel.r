@@ -19,12 +19,12 @@
 #'
 #' @param initPop Data frame comprising the starting population of the simulation.
 #' @param immigrPop Data frame comprising information about the immigrants entering the population across simulation time.
-#' @param initPopList TBD = to be determined
-#' @param immigrPopList TBD = to be determined
+#' @param initPopList A list of matrices, where each matrix represents a subset of initial population.
+#' @param immigrPopList A list of matrices, where each matrix represents a subset of the immigrant population.
 #' @param transitionMatrix A matrix indicating the transition pattern and the names of the functions determining the respective transition rates (with rates to be returned as vectors,
 #' i.e. for input age 0 to 10 eleven rate values have to be returned).
 #' @param absStates A vector indicating the absorbing states of the model.
-#' @param fixInitStates (Vector of) Indices of subStates determining the attributes/subStates that a newborn will be taken over from the mother. If empty or not defined, no attributes will be inherited.
+#' @param fixInitStates (Vector of) Indices of SubStates determining the attributes/subStates that a newborn will be taken over from the mother. If empty or not defined, no attributes will be inherited.
 #' @param varInitStates (A vector comprising the) SubStates / attributes that are assigned to a newborn randomly according to the probabilities \code{initStatesProb}, i.e. that are not inherited from the mother.
 #' @param initStatesProb A vector comprising the probabilities corresponding to \code{varInitStates}.
 #' If \code{fixInitStates} are given (i.e. attributes from the mother are inherited), these probabilities have to sum to one conditioned on the inherited attributes,
@@ -36,10 +36,17 @@
 #' If transition to elementary school is not defined (see below under 'details') and no such month is given school enrollment to elementary school is not modeled / simulated.
 #' @param cores Number of cores as the user specifies. Note: The number is restricted by the maximum number of cores a computer (or a computer cluster) has.
 #' @param seeds To ensure that the results are replicable and are therefore reasonable, the user should always assign a seed to each PRNG (pseudo random number generator) representation used.
+#' @details
+#' The \code{micSimParallel} function is designed to perform population simulations in parallel using multiple processing cores. 
+#' This function is particularly useful for large-scale simulations where computational efficiency is crucial.
+#' The function takes an initial population and an immigrant population, both of which can be provided as single matrices or as lists of matrices for parallel processing. 
+#' If the populations are provided as lists, each element of the list is processed by a different core, allowing for efficient distribution of the computational load.
 #'
-#' @details TBD = to be determined
-#'
-#' @returns TBD = to be determined
+#' @returns A matrix representing the combined population after running the simulation in parallel.
+#' Each row corresponds to an individual, and columns represent different attributes or states of the individuals.
+#' The function ensures that unique IDs are assigned to newborns and that the final output is ordered correctly by these IDs.
+#' This matrix includes the results of the simulations for all subsets of the initial and immigrant populations processed across different cores.
+#' 
 #' @export
 #'
 #'
