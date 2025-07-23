@@ -33,7 +33,7 @@
 #' If \code{fixInitStates} are given (i.e. attributes from the mother are inherited), these probabilities have to sum to one conditioned on the inherited attributes,
 #' i.e. for each (set of) inherited attribute(s) separately. Otherwise, the sum of \code{initStatesProb} has to be one.
 #' @param maxAge A scalar indicating the exact maximal age (i.e., sharp 100.00 years) which an individual can reach during simulation. \code{maxAge} has to be greater than zero.
-#' @param simHorizon A vector comprising the starting and ending date of the simulation. Both dates have to be given as strings in the format 'yyyymmdd'. The starting date has to precede the ending date.
+#' @param simHorizon A vector comprising the starting and ending date of the simulation. Both dates have to be given in the format 'yyyymmdd'. The starting date has to precede the ending date.
 #' @param fertTr A vector indicating all transitions triggering a child birth event during simulation, that is, the creation of a new individual.
 #' @param monthSchoolEnrol The month (as numeric value from 1 to 12) indicating the general enrollment month for elementary school, e.g., 9 for September.
 #' If transition to elementary school is not defined (see below under 'details') and no such month is given school enrollment to elementary school is not modeled / simulated.

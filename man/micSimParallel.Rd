@@ -34,7 +34,7 @@ i.e. for each (set of) inherited attribute(s) separately. Otherwise, the sum of 
 
 \item{maxAge}{A scalar indicating the exact maximal age (i.e., sharp 100.00 years) which an individual can reach during simulation. \code{maxAge} has to be greater than zero.}
 
-\item{simHorizon}{A vector comprising the starting and ending date of the simulation. Both dates have to be given as strings in the format 'yyyymmdd'. The starting date has to precede the ending date.}
+\item{simHorizon}{A vector comprising the starting and ending date of the simulation. Both dates have to be given in the format 'yyyymmdd'. The starting date has to precede the ending date.}
 
 \item{fertTr}{A vector indicating all transitions triggering a child birth event during simulation, that is, the creation of a new individual.}
 
