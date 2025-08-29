@@ -3,8 +3,8 @@ Type: Package
 Title: Performing Continuous-Time Microsimulation 
 Version: 3.0.0
 Date: 2022-11-01
-Authors@R: c(person("Sabine", "Zinn", email = "szinn@diw.de", role = "aut"),
-   	person("Felix", "von Heusinger", email = "fvonheusinger@diw.de", role = "cre"),
+Authors@R: c(person("Sabine", "Zinn", role = c("aut","cre"), email = "szinn@diw.de"),
+   	person("Felix", "von Heusinger", email = "fvonheusinger@diw.de", role = "ctb"),
 	person("Camila", "Weber", email = "cweber@diw.de", role = "ctb"),
 	person("Claudio","Bosco", role = "ctb", email = "Claudio.BOSCO@ec.europa.eu"),
     	person("Maurizio","Teobaldell", role = "ctb", email = "Maurizio.TEOBALDELLI@ext.ec.europa.eu"))
