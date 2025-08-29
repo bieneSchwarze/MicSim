@@ -2,7 +2,7 @@ Package: MicSim
 Type: Package
 Title: Performing Continuous-Time Microsimulation 
 Version: 3.0.0
-Date: 2022-11-01
+Date: 2025-08-29
 Authors@R: c(person("Sabine", "Zinn", role = c("aut","cre"), email = "szinn@diw.de"),
    	person("Felix", "von Heusinger", email = "fvonheusinger@diw.de", role = "ctb"),
 	person("Camila", "Weber", email = "cweber@diw.de", role = "ctb"),
