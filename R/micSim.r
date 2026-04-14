@@ -456,7 +456,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     if(length(fixInitStates)>0){
       for(i in 1:length(fixInitStates)){
         ssum <- sum(initStatesProb[apply(varInitStates,1, function(rr){varInitStates[,fixInitStates[i]][1] %in% rr})])
-        if(ssum!=1)
+        if(!isTRUE(all.equal(ssum, 1, tolerance = 1e-7)))
           stop('The sum of the probabilities to assign initial states to newborns must equal 1.')
       }
     } else {
