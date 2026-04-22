@@ -12,7 +12,7 @@ Description: This toolkit allows performing continuous-time microsimulation for 
 License: GPL (>= 2)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Imports: 
     rlecuyer,
     snowfall
@@ -23,6 +23,10 @@ Suggests:
     dplyr,
     tidyr,
     ggplot2,
+    readr,
+    readxl,
+    stringi,
+    stringr,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr

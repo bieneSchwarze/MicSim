@@ -1,0 +1,509 @@
+---
+title: "population_projection"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Examples on Population Projection (Germany) for the MicSim Package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Example 1: Population Projection (Germany)
+
+This example presents a population projection for Germany, beginning in 2017 and extending to 2035. The projection is conducted at the individual level, accounting for age, gender, and child parity.
+
+The document is organized as follows: First, we collect the necessary input data from these official and open-access sources, all free of charge.
+
+Next, we transform the data to fit our needs and the input requirements of the microsimulation software, `MicSim`, an R package designed for continuous-time microsimulation. We will use `MicSim` to carry out the population projection. `MicSim` requires a base population to start with. In our case it reflects Germany population in 2017, and stems from official statistics provided by the DESTATIS Genesis Database.
+
+It also needs transition rates that indicate the likelihood of changes. In our example, these are parity-specific fertility rates and mortality rates, both varying by age and calendar time. Fertility rates are sourced from the [Human Fertility Database](https://www.humanfertility.org/), and mortality rates come from the [Human Mortality Database](https://mortality.org/). Please note that registration is required for both latter databases. After preparing the inputs, we run the simulation.
+
+Finally, we derive output by examining individual life courses, which consist of sequences of states and transitions. Each state is a characteristic of an individual.
+
+First set all libraries needed for data preparation, simulation, and data visualization.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(readr)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(ggplot2)
+library(stringi)
+```
+
+## Retrieve and Prepare Input Data
+
+Set path to input data files. The path is use-specific and depends where you have stored the data from the Genesis, Human Fertility, and Human Mortality Database. See below more what data exactly, you have to access within these databases.
+
+### Base population
+
+a.  [Population in private households along gender and age in 2017](https://www-genesis.destatis.de/datenbank/online/statistic/12211/table/12211-9039/search/s/QmV2JUMzJUI2bGtlcnVuZw%3D%3D) Source: Genesis database federal statistical office
+
+```{r}
+path <- system.file(
+  "extdata",
+  "data_population_projection/12211-9039_de.csv",
+  package = "MicSim"
+)
+
+lines <- readLines(path, encoding = "latin1")
+lines <- iconv(lines, from = "latin1", to = "UTF-8")
+data_lines <- lines[
+  str_detect(lines, "^(männlich|weiblich|;)")
+]
+txt <- paste(data_lines, collapse = "\n")
+df_raw <- read_delim(
+  I(txt),
+  delim = ";",
+  col_names = c("Geschlecht", "Familienstand", "Altersgruppe", "Wert"),
+  col_types = cols(.default = col_character()),
+  trim_ws = TRUE,
+  show_col_types = FALSE
+)
+
+df <- df_raw %>%
+  mutate(
+    Geschlecht    = na_if(Geschlecht, ""),
+    Familienstand = na_if(Familienstand, ""),
+    Wert          = na_if(Wert, "/")
+  ) %>%
+  fill(Geschlecht, Familienstand, .direction = "down") %>%
+  mutate(
+    Jahr = 2017L,
+    Wert = parse_number(Wert, locale = locale(grouping_mark = ".", decimal_mark = ","))
+  ) %>%
+  filter(!is.na(Altersgruppe)) %>%   # <-- removes the NA line
+  select(Jahr, Geschlecht, Familienstand, Altersgruppe, Wert)
+
+df_pop <- df %>%
+  group_by(Jahr, Geschlecht, Altersgruppe) %>%
+  summarise(
+    Wert = sum(Wert, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+r_decay <- 0.95
+ages_75_100 <- 75:100
+w_75_100 <- r_decay^(ages_75_100 - 75)
+w_75_100 <- w_75_100 / sum(w_75_100)
+
+expand_agegroup <- function(sex, agegroup, value) {
+  agegroup <- str_squish(agegroup)
+  
+  if (agegroup == "unter 20 Jahre") {
+    tibble(Geschlecht = sex, Alter = 0:19, Wert = value / 20)
+  } else if (str_detect(agegroup, "bis unter")) {
+    lo <- as.integer(str_extract(agegroup, "^\\d+"))
+    hi <- as.integer(str_extract(agegroup, "(?<=unter )\\d+"))
+    ages <- lo:(hi - 1)
+    tibble(Geschlecht = sex, Alter = ages, Wert = value / length(ages))
+  } else if (agegroup == "75 Jahre und mehr") {
+    tibble(Geschlecht = sex, Alter = ages_75_100, Wert = value * w_75_100)
+  } else {
+    tibble(Geschlecht = sex, Alter = NA_integer_, Wert = NA_real_)
+  }
+}
+
+df_src <- df_pop %>%
+  select(-Jahr) %>%
+  mutate(Geschlecht = recode(Geschlecht, "männlich" = "m", "weiblich" = "f")) %>%
+  mutate(Altersgruppe = str_squish(Altersgruppe))
+
+df_pop_single_age <- df_src %>%
+  group_split(row_number()) %>%
+  lapply(function(x) expand_agegroup(x$Geschlecht[1], x$Altersgruppe[1], x$Wert[1])) %>%
+  bind_rows() %>%
+  filter(!is.na(Alter), Alter >= 0, Alter <= 100) %>%
+  group_by(Geschlecht, Alter) %>%
+  summarise(Wert = sum(Wert, na.rm = TRUE), .groups = "drop") %>%
+  arrange(Geschlecht, Alter)
+```
+
+b.  [Numbers of females along age and number of kids](https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Geburten/Publikationen/Downloads-Geburten/statistischer-bericht-frauen-zahl-geborene-Kinder-endergebnisse-5126106229005.html?nn=208824) Source: Genesis database federal statistical office
+
+```{r, message=FALSE}
+path <- system.file(
+  "extdata", 
+  "data_population_projection/statistischer-endergebnisse-5126106229005.xlsx",
+  package = "MicSim"
+)
+raw <- readxl::read_excel(path, sheet = "12612-01", col_names = FALSE)
+start_row <- which(raw[[1]] == "Deutschland")
+end_row <- which(stringi::stri_trans_general(raw[[1]], "Latin-ASCII") ==
+                 "Fruheres Bundesgebiet (ohne Berlin-West)")
+df_de <- raw[(start_row + 1):(end_row - 1), ]
+
+df_de_age_groups <- df_de %>%
+  select(
+    Alter = 1,
+    `1` = 2,
+    `2` = 7,
+    `3+` = 12
+  ) %>%
+  filter(!is.na(Alter)) %>%
+  mutate(
+    across(-Alter, ~na_if(.x, "/")),
+    across(-Alter, as.numeric)
+  )
+
+df_single_age <- df_de_age_groups %>%
+  mutate(
+    age_lower = as.integer(str_extract(Alter, "^\\d+")),
+    age_upper = as.integer(str_extract(Alter, "\\d+$"))
+  ) %>%
+  rowwise() %>%
+  mutate(
+    Alter_single = list(age_lower:age_upper)
+  ) %>%
+  unnest(Alter_single) %>%
+  mutate(
+    n_ages = age_upper - age_lower + 1,
+    across(c(`1`, `2`, `3+`), ~ .x / n_ages)
+  ) %>%
+  select(
+    Alter = Alter_single,
+    `1`, `2`, `3+`
+  ) %>%
+  arrange(Alter)
+
+df_single_age_prop <- df_single_age %>%
+  mutate(across(c(`1`, `2`, `3+`), ~replace_na(.x, 0))) %>%
+  rowwise() %>%
+  mutate(
+    total = sum(c_across(c(`1`, `2`, `3+`))),
+    across(c(`1`, `2`, `3+`), ~ ifelse(total > 0, .x / total, NA_real_))
+  ) %>%
+  ungroup() %>%
+  select(-total)
+
+df_single_age_prop
+```
+
+c.  [Proportion of childless females along age groups](https://www-genesis.destatis.de/datenbank/online/statistic/12612/table/12612-0052) Source: Genesis database federal statistical office
+
+```{r}
+path <- system.file(
+  "extdata", 
+  "data_population_projection/12612-0052_de.csv",
+  package = "MicSim"
+)
+lines <- read_lines(path)
+data_lines <- lines[
+  str_detect(lines, "^\\d+\\s+bis\\s+unter")
+]
+txt <- paste(data_lines, collapse = "\n")
+df_raw <- read_delim(
+  I(txt),
+  delim = ";",  # change to ";" if needed
+  col_names = FALSE,
+  col_types = cols(.default = col_character()),
+  trim_ws = TRUE,
+  show_col_types = FALSE
+)
+df_childless <- df_raw %>%
+  transmute(
+    Altersgruppe = X1,
+    Kinderlosenquote = as.numeric(X8)
+  )
+df_childless_age <- df_childless %>%
+  mutate(
+    lo = as.integer(str_extract(Altersgruppe, "^\\d+")),
+    hi = as.integer(str_extract(Altersgruppe, "(?<=unter )\\d+"))
+  ) %>%
+  rowwise() %>%
+  mutate(Alter = list(lo:(hi - 1))) %>%   # "bis unter hi" means hi is excluded
+  unnest(Alter) %>%
+  ungroup() %>%
+  select(Alter, Kinderlosenquote) %>%
+  arrange(Alter)
+
+df_combined <- df_single_age_prop %>%
+  left_join(
+    df_childless_age %>%
+      mutate(`0` = Kinderlosenquote / 100) %>%
+      select(Alter, `0`),
+    by = "Alter"
+  ) %>%
+  select(Alter, `0`, `1`, `2`, `3+`)
+
+x1 <- 15
+y1 <- 1.00   # age 15
+x2 <- 25
+y2 <- 0.74   # age 25
+
+df_combined <- df_combined %>%
+  mutate(
+    `0` = case_when(
+      Alter >= 15 & Alter <= 24 ~ 
+        y1 + (Alter - x1) * (y2 - y1) / (x2 - x1),
+      TRUE ~ `0`
+    )
+  )
+
+print(df_combined, n=20)
+df_combined[1:5, 3] <- 1-df_combined[1:5, 2]
+
+df_standardized <- df_combined %>%
+  rowwise() %>%
+  mutate(
+    total = sum(c_across(c(`0`, `1`, `2`, `3+`)), na.rm = TRUE),
+    across(c(`0`, `1`, `2`, `3+`),
+           ~ ifelse(total > 0, .x / total, NA_real_))
+  ) %>%
+  ungroup() %>%
+  select(-total)
+
+df_standardized
+```
+
+d.  Add Proportion of parties to population data
+
+```{r}
+df_pop_parity <- df_pop_single_age %>%
+  left_join(df_standardized, by = "Alter") %>%
+  mutate(
+    use_props = (Geschlecht == "f" & Alter >= 16 & Alter <= 75 &
+                   !is.na(`0`) & !is.na(`1`) & !is.na(`2`) & !is.na(`3+`)),
+    
+    `0`  = ifelse(use_props, Wert * `0`,  Wert),
+    `1`  = ifelse(use_props, Wert * `1`,  0),
+    `2`  = ifelse(use_props, Wert * `2`,  0),
+    `3+` = ifelse(use_props, Wert * `3+`, 0)
+  ) %>%
+  select(Geschlecht, Alter, Wert, `0`, `1`, `2`, `3+`) %>%
+  arrange(Geschlecht, Alter)
+
+df_pop_parity <- df_pop_parity %>%
+  select(-Wert)
+
+grand_total <- df_pop_parity %>%
+  summarise(gt = sum(`0` + `1` + `2` + `3+`, na.rm = TRUE)) %>%
+  pull(gt)
+
+df_pop_parity_prop_by_age <- df_pop_parity %>%
+  mutate(across(c(`0`,`1`,`2`,`3+`), ~ .x / grand_total))
+
+df_pop_parity_prop_by_age
+```
+
+e.  Plot
+
+```{r}
+
+df_pyramid <- df_pop_parity %>%
+  pivot_longer(
+    cols = c(`0`, `1`, `2`, `3+`),
+    names_to = "Parity",
+    values_to = "Population"
+  ) %>%
+  mutate(
+    Population = ifelse(Geschlecht == "m", -Population, Population)
+  )
+
+sex_totals <- df_pyramid %>%
+  group_by(Geschlecht) %>%
+  summarise(total_sex = sum(Population, na.rm = TRUE), .groups = "drop")
+
+df_pyramid_rel <- df_pyramid %>%
+  left_join(sex_totals, by = "Geschlecht") %>%
+  mutate(
+    Population_rel = Population / total_sex,
+    Population_rel = ifelse(Geschlecht == "m", -Population_rel, Population_rel)
+  )
+
+max_age <- 100
+
+ggplot(df_pyramid_rel,
+       aes(x = Alter,
+           y = Population_rel,
+           fill = case_when(
+             Geschlecht == "m" ~ "Male",
+             Geschlecht == "f" & Alter >= 76 ~ "parity unknown",
+             TRUE ~ Parity
+           ))) +
+  
+  geom_bar(stat = "identity", width = 1) +
+  geom_hline(yintercept = 0, linewidth = 0.4) +
+  geom_vline(xintercept = seq(0, max_age, length=17),
+             linewidth = 0.25,
+             colour = "grey70") +
+  annotate("text",
+           x = max_age - 10,
+           y = 0.01,
+           label = "Female",
+           hjust = 0,
+           size = 6,
+           fontface = "bold") +
+  annotate("text",
+           x = max_age - 10,
+           y = -0.01,
+           label = "Male",
+           hjust = 1,
+           size = 6,
+           fontface = "bold") +
+  coord_flip() +
+  scale_y_continuous(
+    labels = function(x) abs(x)
+  ) +
+  
+  scale_fill_manual(
+    values = c(
+      "Male" = "#2C7BB6",      # blue males
+      "parity unknown" = "grey70",# grey females 76+
+      "0"  = "#d73027",
+      "1"  = "#fc8d59",
+      "2"  = "#91bfdb",
+      "3+" = "#4575b4"
+    ),
+    name = "Parity"
+  ) +
+  labs(
+    x = "Age",
+    y = "Population"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+### Fertilty rates
+
+a.  Get Age-period-specific rates for 1956-2017 from [Human Fertility Database](https://www.humanfertility.org)
+
+File name: DEUTNPasfr.txt
+
+```{r}
+path <- system.file(
+  "extdata", 
+  "data_population_projection/DEUTNPasfrRR.txt",
+  package = "MicSim"
+)
+FR <- read.table(path, 
+         skip = 4,                    
+         col.names = c("Year", "Age", "ASFR"),
+         fill = TRUE,
+         strip.white = TRUE,
+         stringsAsFactors = FALSE)
+FR$Age[FR$Age %in% "12-"] <- 12
+FR$Age[FR$Age %in% "55+"] <- 55
+```
+
+b.  Proportional Splitting to get parity specific age-period rates
+
+Apply age-specific parity shares from official stats for 2024. Assumption is that these shares do not change much between 2010 and 2024.
+
+```{r}
+shares <- df_single_age_prop %>%
+  transmute(
+    Age = as.integer(Alter),
+    s1 = as.numeric(`1`),
+    s2 = as.numeric(`2`),
+    s3p = as.numeric(`3+`)
+  )
+
+FR_use <- FR %>%
+  mutate(
+    Age  = as.integer(Age),
+    Year = as.integer(Year),
+    ASFR = as.numeric(ASFR)
+  ) %>%
+  filter(
+    Age >= 15, Age <= 75,
+    Year >= 2010, Year <= 2017
+  )
+
+FR_parity <- FR_use %>%
+  left_join(shares, by = "Age") %>%
+  mutate(
+    ASFR_1  = ASFR * s1,
+    ASFR_2  = ASFR * s2,
+    ASFR_3p = ASFR * s3p
+  ) %>%
+  select(Year, Age, ASFR, ASFR_1, ASFR_2, ASFR_3p)
+
+head(FR_parity)
+```
+
+c.  Plot
+
+```{r}
+plot_dat <- FR_parity %>%
+  mutate(
+    Age  = as.numeric(Age),
+    Year = as.numeric(Year)
+  ) %>%
+  filter(
+    Age >= 12, Age <= 55,
+    Year >= 2010, Year <= 2017
+  ) %>%
+  pivot_longer(
+    cols = c(ASFR_1, ASFR_2, ASFR_3p),
+    names_to = "Parity",
+    values_to = "ASFR_parity"
+  ) %>%
+  mutate(
+    Parity = recode(
+      Parity,
+      "ASFR_1"  = "0 to 1",
+      "ASFR_2"  = "1 to 2",
+      "ASFR_3p" = "2 to 3+ & 3+ to 3+"
+    )
+  )
+
+ggplot(plot_dat,
+       aes(x = Age, y = ASFR_parity, group = Year, colour = factor(Year))) + 
+  geom_line(linewidth = 0.5) +
+  facet_wrap(~ Parity, ncol = 1, scales = "free_y") +
+  scale_x_continuous(breaks = seq(12, 55, 5)) +
+  scale_color_discrete(name = "Year") +
+  labs(x = "Age", y = "Parity-specific fertility rates") +
+  theme_minimal(base_size = 13) +
+  theme(
+    strip.text = element_text(size = 12, face = "bold")
+  )
+```
+
+### Mortality rates
+
+a.  Get Age-period-specific rates for 1990-2020 from [Human Mortality Database](https://mortality.org/)
+
+File name: Mx_1x1.txt
+
+```{r}
+path <- system.file(
+  "extdata", 
+  "data_population_projection/Mx_1x1.txt",
+  package = "MicSim"
+)
+MR <- read.table(path, 
+                 skip = 3,                    
+                 col.names = c("Year", "Age", "Female", "Male", "Total"),
+                 fill = TRUE,
+                 strip.white = TRUE,
+                 stringsAsFactors = FALSE)
+head(MR)
+```
+
+b.  Plot
+
+```{r}
+MR$Age[MR$Age %in% "110+"] <- 110
+MR$Age <-as.numeric(MR$Age)
+
+MR_filtered <- MR %>%
+  filter(Year >= 2010, Year <= 2017, Age >= 0, Age <= 99)
+
+MR_long <- MR_filtered %>%
+  pivot_longer(cols = c(Female, Male), names_to = "Gender", values_to = "MR")
+
+MR_long <- MR_long %>%
+  mutate(MR = as.numeric(MR))
+
+ggplot(MR_long, aes(x = Age, y = MR, color = factor(Year), group = interaction(Year, Gender))) +
+  geom_line() +
+  facet_wrap(~ Gender, ncol = 1) +
+  scale_x_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(x = "Age", y = "Mortality Rate", color = "Year") +
+  theme_minimal(base_size = 13) +
+  theme(
+    strip.text = element_text(size = 12, face = "bold")
+  )
+```

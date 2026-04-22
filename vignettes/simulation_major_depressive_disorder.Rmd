@@ -12,10 +12,14 @@ vignette: >
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Introduction
-This vignette demonstrates a simulation study of educational inequalities in major depressive disorder (MDD) using the MicSim package. The simulation uses sample data derived from the study by @lepe2024, which used data from the Lifelines Cohort Study. 
+# Example of Simulating Educational Inequalities in Depression Using the MicSim Package
 
-In this vignette we will take you through a standard MicSim workflow. First, we define the simulation framework and the initial population, then we specify transition rates, build the transition matrix and run the simulation. Lastly, we process and analyze the output.
+## Introduction
+
+This vignette demonstrates a simulation study of educational inequalities in major depressive disorder (MDD) using the `MicSim` package. The simulation uses sample data derived from the study by @lepe2024, which used data from the Lifelines Cohort Study.
+
+In this vignette we will take you through a standard `MicSim` workflow. First, we define the simulation framework and the initial population, then we specify transition rates, build the transition matrix and run the simulation. Lastly, we process and analyze the output.
+
 ```{r libraries, warning=FALSE, message=FALSE}
 # loading libraries
 library(MicSim)
@@ -29,9 +33,9 @@ rm(list = ls())
 invisible(gc())
 ```
 
-# Definition of Basic Simulation Frame
+### Definition of Basic Simulation Frame
 
-We start with defining the simulation horizon (in a yyyymmdd format). Next, we define desired sample size and minimum and maximum ages. In this example, sample size is kept intentionally small to reduce necessary computation time. A larger population would lead to better, more reliable results, but cannot be implemented in this example. 
+We start with defining the simulation horizon (in a yyyymmdd format). Next, we define desired sample size and minimum and maximum ages. In this example, sample size is kept intentionally small to reduce necessary computation time. A larger population would lead to better, more reliable results, but cannot be implemented in this example.
 
 ```{r sim frame}
 startDate <- 20180101
@@ -44,10 +48,9 @@ minage <- 18
 maxage <- 65
 ```
 
-
 The state space tells us which attributes the simulated individuals can consist of. In this case these are sex, education and health status.
 
-Usually, for a simulation of a life course, death is a risk an individual will always be exposed to. Thus, MicSim operates under the assumption that an absorbing state will be defined. If this is definitely not wanted by the user, such as in this case, best practice is to still provide the state, but set the mortality rate to zero [@zinn2011, p. 9].
+Usually, for a simulation of a life course, death is a risk an individual will always be exposed to. Thus, `MicSim` operates under the assumption that an absorbing state will be defined. If this is definitely not wanted by the user, such as in this case, best practice is to still provide the state, but set the mortality rate to zero [@zinn2011, p. 9].
 
 ```{r sim frame state space}
 health    <- c("NoMDD", "MDD")
@@ -58,8 +61,7 @@ stateSpace <- expand.grid(health = health, education = education, sex = sex)
 absStates <- "dead"
 ```
 
-
-# Definition of initial population
+### Definition of initial population
 
 For the user, the definition of the initial population is largely left up to needs and preference. Here we create birthdates for a cohort born in the year 2000 and then assign a baseline prevalence of MDD as estimated from empirical data [see @lepe2024].
 
@@ -116,11 +118,9 @@ initPop %>%
 
 ```
 
-# Definition of Transition Rates
+### Definition of Transition Rates
 
-We only define two sets of rates: 
-1. Incidence rate ??? how often people move from no depression to depression.
-2. Remission rate ??? how often people move from depression to no depression.
+We only define two sets of rates: 1. Incidence rate ??? how often people move from no depression to depression. 2. Remission rate ??? how often people move from depression to no depression.
 
 We begin by estimating the transition rates using the observed data. We then generate counterfactual rates under the assumption that individuals with low education have the same quality of social contacts as individuals with high education. This allows us to assess the potential impact of addressing modifiable factors that contribute to educational inequalities in MDD.
 
@@ -140,13 +140,13 @@ rates %>%
   kable("html", caption = "**Subset of transition rates per age**")
 ```
 
-The definition of transition rates has to follow the specific format required by MicSim, as age and calTime have to always be supplied as arguments. Duration is variable and only needs to be specified as a function argument if used in the transition rate function.
+The definition of transition rates has to follow the specific format required by `MicSim`, as age and `calTime` have to always be supplied as arguments. Duration is variable and only needs to be specified as a function argument if used in the transition rate function.
 
 In this example the rate function simply looks up the correct value in the rate table we loaded earlier. We subtract 16 from each person???s age to select the right row because the first data row in the table represents age 17. All rates at age 17 are set to zero because individuals are not allowed to transition until they turn 18.
 
 For a more detailed explanation and examples of rate definition, refer to the documentation of `MicSim()` and the vignette on Migration Flows in this package.
-```{r transition rates}
 
+```{r transition rates}
 create_rate_function <- function(vec) {
   # Ensures the correct column of transition rates called on by the function
   force(vec)
@@ -170,16 +170,15 @@ for (col in names(rates)[-1]) {
 }
 ```
 
-# Definition of transition matrix
+### Definition of transition matrix
 
-Lastly, we need to assign these defined functions to the corresponding state transitions. This means constructing a transition matrix.
-We do this also for the absorbing state, "dead", which no individual can transition into as the mortality rate is 0.
+Lastly, we need to assign these defined functions to the corresponding state transitions. This means constructing a transition matrix. We do this also for the absorbing state, "dead", which no individual can transition into as the mortality rate is 0.
 
-Then  all other possible transitions between states are defined. Note that we define transitions to states not only one one attribute, such as NoMDD -> MDD, but supply transitions that only trigger for a specific combination of attributes. As long as transition rate functions are assigned to these transitions, it is possible to supply highly specific transitions that depend on more than one attribute from the state space to MicSim.
+Then all other possible transitions between states are defined. Note that we define transitions to states not only one one attribute, such as NoMDD -\> MDD, but supply transitions that only trigger for a specific combination of attributes. As long as transition rate functions are assigned to these transitions, it is possible to supply highly specific transitions that depend on more than one attribute from the state space to `MicSim`.
 
 Any transition not defined here is impossible and will not occur.
 
-To construct the transition matrix, we combine all the information into one transition matrix. 
+To construct the transition matrix, we combine all the information into one transition matrix.
 
 ```{r transition definition}
 absTransitions <- c("dead", "mortRates")
@@ -202,9 +201,9 @@ transitionMatrix <- buildTransitionMatrix(
 )
 ```
 
-In this example, we consider a counterfactual case, for which we also define transitions. These are the same, the only difference is between the transition rates. For this reason, we just adjust the column that assigns the rate functions. 
+In this example, we consider a counterfactual case, for which we also define transitions. These are the same, the only difference is between the transition rates. For this reason, we just adjust the column that assigns the rate functions.
 
-Same as above, these transitions are then combined into a  transition matrix.
+Same as above, these transitions are then combined into a transition matrix.
 
 ```{r transition matrix}
 cf_allTransitions <- allTransitions
@@ -217,11 +216,12 @@ cf_transitionMatrix <- buildTransitionMatrix(
 )
 ```
 
+### Running the simulations
 
-# Running the simulations
 We set a seed here to ensure reproducibility and then simulate educational inequalities in depression under observed conditions.
 
 We first run the main simulation and then the counterfactual (cf) simulation.
+
 ```{r run sims}
 set.seed(1234)
 
@@ -232,9 +232,9 @@ cf_simpop <- micSim(initPop=initPop, transitionMatrix=cf_transitionMatrix,
                     absStates=absStates, maxAge=maxage, simHorizon=simHorizon)
 ```
 
+#### Processing the output
 
-# Processing the output
-After the standard workflow required to run MicSim, the data can be processed in different ways depending on what one is interested in. 
+After the standard workflow required to run `MicSim`, the data can be processed in different ways depending on what one is interested in.
 
 In this example, we first convert the output to long format, where each row represents a specific episode that an individual experienced. We additionally create variables that indicate the age at the start and end of each episode, as well as a variable indicating whether the data is from the observed or counterfactual simulation. For convenience, the output from both simulations is merged into one data frame, which is then used for further analysis.
 
@@ -287,12 +287,13 @@ mydata <- simpop_long %>%
   )
 ```
 
+### Analyzing output
 
-# Analyzing output
 In this study, we aimed to simulate the development of educational inequalities in MDD across the life course, and to estimate the potential impact of intervening on modifiable factors. In this example, we focus on the educational inequalities in both the age-specific prevalence of MDD and the life course prevalence of MDD. It should be noted that we are not limited to only assessing the prevalence of MDD. For example, in the publication by @lepe2024 we also look at the age of onset of MDD and the duration of MDD episodes.
 
-## Age-specific prevalence
-We calculate the age-specific prevalence by dividing the number of people with MDD in each one-year age band by the total size of that subgroup (N = `r sprintf("%d", N/4)`). These values are then plotted for easier interpretation. 
+#### Age-specific prevalence
+
+We calculate the age-specific prevalence by dividing the number of people with MDD in each one-year age band by the total size of that subgroup (N = `r sprintf("%d", N/4)`). These values are then plotted for easier interpretation.
 
 We clearly show that individuals with low education are more likely to experience MDD than individuals with high education, which agrees with the literature. We would also expect the female curves to lie above the male curves throughout, but here the lines cross within each education level. This crossover is simply Monte-Carlo noise due to the number of synthethic individuals in the simulation (N = `r sprintf("%d", N)`). In the published study we avoided this problem by simulating 500000 individuals, but that size is too computationally heavy for this example.
 
@@ -332,9 +333,9 @@ prev %>%
   )
 ```
 
+### Life course prevalence
 
-## Life course prevalence
-Lastly, we calculate life-course prevalence, which is the proportion of people who experience MDD at any point in their life, using both the observed rates and the counterfactual rates. The code here filters by Episode <= 2 to avoid duplicate individuals. This works as people can only transition between the two states, so anyone with depression will have had it in either their first or second episode.
+Lastly, we calculate life-course prevalence, which is the proportion of people who experience MDD at any point in their life, using both the observed rates and the counterfactual rates. The code here filters by Episode \<= 2 to avoid duplicate individuals. This works as people can only transition between the two states, so anyone with depression will have had it in either their first or second episode.
 
 Consistent with earlier findings, those with low education are more likely than those with high education to experience MDD at least once. In the counterfactual scenario, life-course prevalence falls for the low-education group, but it still remains well above the level observed for the high-education group.
 
@@ -352,4 +353,3 @@ lc_prev <- mydata %>%
 
 kable(lc_prev)
 ```
-
