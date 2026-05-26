@@ -71,7 +71,6 @@ builtStatesCodes <- function(transitionMatrix){
 #' @returns A dependency matrix
 #' @keywords internal
 #' @export
-#' @noRd
 #'
 rate_cS <- function(allTr){
   rates <-  unique(allTr)
