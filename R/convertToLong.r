@@ -43,7 +43,7 @@
 #'
 #' \dontrun{
 #' # Run microsimulation before, e.g., the complex example
-#' # described on the help page of the function "micSim".
+#' # described on the help page of the function \link{micSim} and \link{micSimLink}.
 #'
 #' pop <- micSim(initPop, immigrPop, transitionMatrix, absStates, initStates, initStatesProb,
 #'         maxAge, simHorizon, fertTr)
@@ -53,7 +53,7 @@
 #'
 #'
 convertToLongFormat <- function(pop, migr=FALSE) {
-  
+
   # Take global variables used from global environment
   absTransitions <- mget('absTransitions', envir=globalenv(), ifnotfound=list(0))$absTransitions
   allTransitions <- mget('allTransitions', envir=globalenv(), ifnotfound=list(0))$allTransitions
@@ -61,7 +61,7 @@ convertToLongFormat <- function(pop, migr=FALSE) {
   simHorizon <- mget('simHorizon', envir=globalenv(), ifnotfound=list(0))$simHorizon
   if(migr)
     immigrPop <- mget('immigrPop', envir=globalenv(), ifnotfound=list(0))$immigrPop
-  
+
   if(is.vector(absTransitions))
     absTransitions <- matrix(unlist(absTransitions), ncol=2, nrow=1)
   absStates <- absTransitions[,1]
@@ -70,26 +70,26 @@ convertToLongFormat <- function(pop, migr=FALSE) {
     colnames(stateSpaceTMP) <- attr(stateSpace,'name')
     stateSpace <- stateSpaceTMP
   }
-  
+
   # --------------------------------------------------------------------------------------------------------------------
   # --------------------------------------------------------------------------------------------------------------------
   # Set of auxiliary function used in transformation process
   # --------------------------------------------------------------------------------------------------------------------
   # --------------------------------------------------------------------------------------------------------------------
   # Extract transition between values of state variables (using information given in "absTranstions" and "allTransitions")
-  
+
   getTransition <- function(oSdS){
-    oS <- oSdS[1]
-    dS <- oSdS[2]
-    tr <- ''
-    if(is.na(oS) | is.na(dS)){
+     oS <- oSdS[1]
+     dS <- oSdS[2]
+     tr <- ''
+     if(is.na(oS) | is.na(dS)){
       tr <- 'cens'
-    } else {
-      oS <- as.character(unlist(oS))
-      dS <- as.character(unlist(dS))
-      if(dS %in% c("dead", "rest", absTransitions[,1])){
-        tr <- dS
-      } else {
+     } else {
+       oS <- as.character(unlist(oS))
+       dS <- as.character(unlist(dS))
+       if(dS %in% c("dead", "rest", absTransitions[,1])){
+         tr <- dS
+       } else {
         oS <- unlist(strsplit(oS,split='/'))
         dS <- unlist(strsplit(dS,split='/'))
         cid <- which(allTransitions[,1] %in% paste(oS,dS, sep='->'))
@@ -99,31 +99,31 @@ convertToLongFormat <- function(pop, migr=FALSE) {
           cad <- which(oS!=dS)
           tr <- paste(oS[cad],dS[cad],sep='->')
         }
-      }
-    }
-    return(tr)
+       }
+     }
+     return(tr)
   }
   # According to transition given, create state of destination by replacing value of state variable
-  
+
   replaceStateValue <- function(vec){
-    tr <- as.character(unlist(vec[length(vec)]))
-    tr <- unlist(strsplit(tr,split='->'))
-    att <- vec[-length(vec)]
-    att[which(att==tr[1])] <- tr[2]
-    return(att)
+   tr <- as.character(unlist(vec[length(vec)]))
+   tr <- unlist(strsplit(tr,split='->'))
+   att <- vec[-length(vec)]
+   att[which(att==tr[1])] <- tr[2]
+   return(att)
   }
   # Create sequence of numbers
   giveSeq <- function(nu){
-    return(1:nu)
+     return(1:nu)
   }
-  
+
   # --------------------------------------------------------------------------------------------------------------------
   # --------------------------------------------------------------------------------------------------------------------
   # Transform output of microsimulation into data in long format
   # --------------------------------------------------------------------------------------------------------------------
   # --------------------------------------------------------------------------------------------------------------------
   if("motherID" %in% colnames(pop))
-    pop <- pop[,!(colnames(pop) %in% "motherID")]
+    pop <- pop[,!(colnames(pop) %in% "motherID")] #this just drops motherID -> not a solve for convertolong that respects IDs
   id <- pop[,'ID', drop=F]
   birthDate <- pop[,'birthDate']
   birthyear <- ifelse(is.na(pop[,'birthDate']), NA, 1970+getInDays(pop[,'birthDate'])/365.25) # exact birth year with digits
@@ -139,10 +139,10 @@ convertToLongFormat <- function(pop, migr=FALSE) {
   fromState[idMissVar,] <- initState[idMissVar,]
   # Create for each state variable considered a column in the `newly' constructed data set
   for(i in 1:dim(stateSpace)[2]){
-    nam <- names(stateSpace)[i]
-    colNam <- c(colnames(popLong), nam)
-    popLong <- cbind(popLong,fromState[,i])
-    colnames(popLong) <- colNam
+   nam <- names(stateSpace)[i]
+   colNam <- c(colnames(popLong), nam)
+   popLong <- cbind(popLong,fromState[,i])
+   colnames(popLong) <- colNam
   }
   # Describe observation scheme:
   # statusEntry: 0: left trunction, 1: entry observed
@@ -168,8 +168,19 @@ convertToLongFormat <- function(pop, migr=FALSE) {
     popLongCensSE <- popLong[popLong[,'ID'] %in% idCensSE,]
     popLongCensSE <- popLongCensSE[which(c(diff(as.numeric(popLongCensSE[,'ID'])),2)!=0),]
     odId <- which(names(popLong)=='OD')
-    ReplMat <- apply(popLongCensSE[,c(7:(6+dim(stateSpace)[2]),odId)],1, replaceStateValue)
-    popLongCensSE[,7:(6+dim(stateSpace)[2])] <- t(ReplMat)
+    rows <- popLongCensSE[, c(7:(6+dim(stateSpace)[2]), odId)]
+
+    ReplMat <- t(
+      do.call(rbind, lapply(seq_len(nrow(rows)), function(i) {
+        replaceStateValue(rows[i, ])
+      }))
+    )
+    if (is.null(dim(ReplMat))) { #if dim(stateSpace)[2]) == 1, need to convert to a matrix
+      ReplMat <- matrix(ReplMat, nrow = nrow(popLongCensSE), ncol = 1)
+    } else {                               # k ≥ 2 : ReplMat is k × nr
+      ReplMat <- t(ReplMat)                # make it nr × k
+    }
+    popLongCensSE[, 7:(6+dim(stateSpace)[2])] <- ReplMat
     popLongCensSE[,'statusExit'] <- 0
     popLongCensSE[,'OD'] <- 'cens'
     popLongCensSE[,'Tstop'] <- simHorizon[2]
@@ -220,6 +231,17 @@ convertToLongFormat <- function(pop, migr=FALSE) {
   popLong <- popLong[,c(1,2,7,3,4,5,6,8,9,idCovs)]
   return(popLong)
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 

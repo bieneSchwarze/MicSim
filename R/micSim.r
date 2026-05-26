@@ -305,7 +305,7 @@
 #' # Definition of immigrants entering the population (for illustration purposes, create immigrants
 #' # randomly)
 #' M = 20
-#' immigrDates <- runif(M, min=getInDays(20140101), max=getInDays(20241231))
+#' immigrDates <- runif(M, min=getInDays(startDate), max=getInDays(endDate))
 #' immigrAges <- runif(M, min=15*365.25, max=70*365.25)
 #' immigrBirthDates <- immigrDates - immigrAges
 #' IDmig <- max(as.numeric(initPop[,"ID"]))+(1:M)
@@ -368,7 +368,7 @@
 #' # (6) Rates to change educational attainment
 #' # Set rate to 'Inf' to make transition for age 7 deterministic.
 #' noToLowEduRates <- function(age, calTime){
-#'   rate <- ifelse(age==7,Inf,0)
+#'   rate <- ifelse(age>=7,Inf,0)
 #'   return(rate)
 #' }
 #' lowToMedEduRates <- function(age, calTime){
@@ -426,7 +426,7 @@
 #'
 micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fixInitStates = c(),
                    varInitStates=c(), initStatesProb=c(), maxAge=99, simHorizon, fertTr=c(), monthSchoolEnrol=c()) {
-  
+
   # --------------------------------------------------------------------------------------------------------------------
   # --------------------------------------------------------------------------------------------------------------------
   # A. CHECK INPUT FOR CONSISTENCY
@@ -456,13 +456,16 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     if(length(fixInitStates)>0){
       for(i in 1:length(fixInitStates)){
         ssum <- sum(initStatesProb[apply(varInitStates,1, function(rr){varInitStates[,fixInitStates[i]][1] %in% rr})])
-        if(!isTRUE(all.equal(ssum, 1, tolerance = 1e-7)))
+        if(ssum!=1)
           stop('The sum of the probabilities to assign initial states to newborns must equal 1.')
       }
     } else {
       if(sum(initStatesProb)!=1)
         stop('The sum of the probabilities to assign initial states to newborns must equal 1.')
     }
+  }
+  if(any(depMatrix[,4] != 0)) {
+    stop('There is an impossible transition rate argument, please double check.')
   }
   # check whether all functions delivering transition rates deliver vectors of rates as output (necessary for integration procedure later on)
   allTr <- unique(as.vector(transitionMatrix)[as.vector(transitionMatrix) !="0"])
@@ -478,17 +481,34 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
   ran <- min(c(diff(ranYear), diff(ranAge)))
   depMatrix <- rate_cS(allTr)
   for (tr in 1:length(depMatrix)) {
-    if(ncol(depMatrix) >= 3){
-      tr_dur <- rownames(depMatrix)[depMatrix[,3] == 1]
-      if(length(tr_dur) != 0){
-        for(tr in 1:length(tr_dur)){ # check whether all functions delivering transition rates deliver vectors of rates as output (necessary for integration procedure later on)
-          for(cal in c(getYear(simStartInDays): getYear(simStopInDays))){
-            for(age in minAge:(maxAge-1)){
-              for(dur in 0:ran){
-                res <- eval(do.call(tr_dur[tr], args=list(age=age,calTime=cal,duration=dur)))
+    if(any(depMatrix[,3] == 1)){
+      tr_dur <- rownames(depMatrix)[depMatrix[,3] != 0]
+        if(length(tr_dur) != 0){
+          for(tr in 1:length(tr_dur)){ # check whether all functions delivering transition rates deliver vectors of rates as output (necessary for integration procedure later on)
+            for(cal in c(getYear(simStartInDays): getYear(simStopInDays))){
+              for(age in minAge:(maxAge-1)){
+                for(dur in 0:ran){
+                  res <- eval(do.call(tr_dur[tr], args=list(age=age,calTime=cal,duration=dur)))
+                  if(anyNA(res)){
+                    cat("The rates function for ", allTr[i], " does not deliver a vector of rates for an input vector of age, calendar time, and/or duration (all in years).\n")
+                    cat("The missing rate occurs at year ",cal, " for age ", age, " and duration ", dur, "\n.")
+                    cat("This is a requirement for the simulation procedure to run since it is based on integrated hazard rates.\n")
+                    stop('Incorrect definition of input rates function!')
+                  }
+                }
+              }
+            }
+          }
+        }
+        else{
+          tr_nd <- rownames(depMatrix)[depMatrix[,3] == 0]
+          for(tr in 1:length(tr_nd)){ # check whether all functions delivering transition rates deliver vectors of rates as output (necessary for integration procedure later on)
+            for(cal in c(getYear(simStartInDays): getYear(simStopInDays))){
+              for(age in minAge:(maxAge-1)){
+                res <- eval(do.call(tr_nd[tr], args=list(age=age,calTime=cal)))
                 if(anyNA(res)){
-                  cat("The rates function for ", allTr[i], " does not deliver a vector of rates for an input vector of age, calendar time, and/or duration (all in years).\n")
-                  cat("The missing rate occurs at year ",cal, " for age ", age, " and duration ", dur, "\n.")
+                  cat("The rates function for ", allTr[i], " does not deliver a vector of rates for an input vector of age and/ or calendar time (all in years).\n")
+                  cat("The missing rate occurs at year ",cal, " and for age ", age, "\n.")
                   cat("This is a requirement for the simulation procedure to run since it is based on integrated hazard rates.\n")
                   stop('Incorrect definition of input rates function!')
                 }
@@ -496,25 +516,8 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
             }
           }
         }
-      }
-      else{
-        tr_nd <- rownames(depMatrix)[depMatrix[,3] != 1]
-        for(tr in 1:length(tr_nd)){ # check whether all functions delivering transition rates deliver vectors of rates as output (necessary for integration procedure later on)
-          for(cal in c(getYear(simStartInDays): getYear(simStopInDays))){
-            for(age in minAge:(maxAge-1)){
-              res <- eval(do.call(tr_nd[tr], args=list(age=age,calTime=cal)))
-              if(anyNA(res)){
-                cat("The rates function for ", allTr[i], " does not deliver a vector of rates for an input vector of age and/ or calendar time (all in years).\n")
-                cat("The missing rate occurs at year ",cal, " and for age ", age, "\n.")
-                cat("This is a requirement for the simulation procedure to run since it is based on integrated hazard rates.\n")
-                stop('Incorrect definition of input rates function!')
-              }
-            }
-          }
-        }
-      }
     }
-    if (ncol(depMatrix) == 2) {
+    else {
       tr_nd <- rownames(depMatrix)
       for (tr in 1:length(tr_nd)) {
         for (cal in getYear(simStartInDays):getYear(simStopInDays)) {
@@ -536,13 +539,13 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
   } else {
     schoolEnrol <- TRUE
   }
-  
-  # --------------------------------------------------------------------------------------------------------------------
-  # --------------------------------------------------------------------------------------------------------------------
-  # B. DEFINITION OF GLOBAL PARAMETERS
-  # --------------------------------------------------------------------------------------------------------------------
-  # --------------------------------------------------------------------------------------------------------------------
-  
+
+# --------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------
+# B. DEFINITION OF GLOBAL PARAMETERS
+# --------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------
+
   # Simulation horizon
   simStartInDays <- getInDays(simHorizon[1])
   simStopInDays  <- getInDays(simHorizon[2])
@@ -572,13 +575,13 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
   }
   # Maximal Id / counter for individuals in the simulation
   maxId <- 0
-  
-  # ----------------------------------------------------------------------------------------------------------------------
-  # ----------------------------------------------------------------------------------------------------------------------
-  # C. FUNCTIONS REQUIRED FOR SIMULATION
-  # ----------------------------------------------------------------------------------------------------------------------
-  # ----------------------------------------------------------------------------------------------------------------------
-  
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+# C. FUNCTIONS REQUIRED FOR SIMULATION
+# ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
   # Function building matrix indicating the transitions between states causing a newborn
   buildFertTrExpanded <- function(){
     allStates <- matrix(rownames(transitionMatrix), ncol=1)
@@ -608,7 +611,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     fertTrExpanded <- cbind(codingScheme[indCodes1,2],codingScheme[indCodes2,2])
     return(fertTrExpanded)
   }
-  
+
   # Function checks whether a transition causes a newborn.
   # (Demands 'fertTrExpanded': matrix indicating the transitions between states causing a newborn (defined by 'fertTr').)
   isBirthEvent <- function(currState, destState){
@@ -618,7 +621,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
       return(TRUE)
     return(FALSE)
   }
-  
+
   # Function adds to simulation population a newborn (using combined sim. step with duration dep. trans. functions)
   addNewNewborn_dur <- function(birthTime=birthTime, motherID=motherID, motherState=motherState){
     if(length(fixInitStates)>0){
@@ -640,10 +643,10 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     #cat('NewBorn: ',newInd,'\n')
     initPop <<- rbind(initPop,newInd)
     mothers <<- rbind(mothers, c(motherID, maxId))
-    nE <- getNextStep(c(maxId,birthState,0,birthTime,motherID))
+    nE <- getNextStep(c(maxId,birthState,0,birthTime,birthTime,birthState,motherID))
     #cat('\n------------n')
   }
-  
+
   # Function building matrix indicating the transitions between states causing a school enrollment
   buildEduTrExpanded <- function(){
     allStates <- matrix(rownames(transitionMatrix), ncol=1)
@@ -663,7 +666,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     eduTrExpanded <- cbind(codingScheme[indCodes1,2],codingScheme[indCodes2,2])
     return(eduTrExpanded)
   }
-  
+
   # Function checks whether a transition implies a school enrollment (in the year when child turns seven).
   # (If state 1 comprises value 'no' and state 2 comprises value 'low', the transition is marked as 'school enrollment'.)
   isSchoolEnrolment <- function(currState,destState){
@@ -673,17 +676,17 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
       return(TRUE)
     return(FALSE)
   }
-  
-  # ----------------------------------------------------------------------------------------------------------------------
-  # ----------------------------------------------------------------------------------------------------------------------
-  # D. SIMULATION STEP
-  # ----------------------------------------------------------------------------------------------------------------------
-  # ----------------------------------------------------------------------------------------------------------------------
-  
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+# D. SIMULATION STEP
+# ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
   # Function to compute the next transition state and time of an individual who at age 'currAge', at time 'calTime'
   # entered its current state 'currState'. At this, consider possible duration dependencies of transition rates.
-  getNextStep <- function(inp, isIMInitEvent=F){
-    
+  getNextStep <- function(inp, isIMInitEvent=F, isMig = F){
+
     # Extract input data
     id <- inp[1]
     currState <- inp[2] # current state in numerical code
@@ -691,19 +694,19 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     calTime <- inp[4] # calendar time in days since 01-01-1970
     birthTime <- inp[5] # birth time in days since 01-01-1970
     initState <- inp[6] # initial state at sim. start, NA for individuals not yet born at that time
-    isMig <- inp[7] # is migrant
-    
+    mothID <- inp[7] # motherId for MicSim?
+
     # First event of an immigrant: he/she enters the population later than sim. starting time
     lagToWaitingTime <- ifelse(isIMInitEvent, (calTime - simStartInDays)/365.25,0) # in years
-    #cat('\n-----\nID: ',id,'\n')
-    #print(inp)
+     #cat('\n-----\nID: ',id,'\n')
+     #print(inp)
     ageInYears <- currAge/365.25
-    #cat('Age: ',ageInYears,' - CalTime: ',getYear(calTime),'-',getMonth(calTime),'-',getDay(calTime),'\n')
+     #cat('Age: ',ageInYears,' - CalTime: ',getYear(calTime),'-',getMonth(calTime),'-',getDay(calTime),'\n')
     # Possible destination states
     possTr <- transitionMatrixNum[match(currState, rownames(transitionMatrixNum)),]
     possTr <- possTr[which(possTr !=0)]
     nextEventMatrix <- matrix(0, ncol=2, nrow=length(possTr))
-    
+
     # How many years (along age scale) remain until 'maxAge'?
     ranMaxAge <- (maxAge-0.01)-ageInYears
     # How many years (along cal. time scale) remain until simulation end?
@@ -714,8 +717,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     #ranAge <- c(ageInYears,ageInYears+ranMaxAge) # age range in years
     #ranYear <- c(getYear(calTime), getYear(calTime)+ran) # year range in years
     #cat('RanAge: ',ranAge,' - ranYear: ',ranYear,'\n')
-    
-    if(ncol(depMatrix) >= 3){
+    if(any(depMatrix[,3] == 1)) {
       tr_dur <- rownames(depMatrix)[depMatrix[,3] == 1]
       # Extract transition history of individual until current cal. time.
       historiesInd <- transitions[transitions[,1] %in% id & transitions[,4] <= calTime,,drop=F]
@@ -790,7 +792,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
               #cat('\n---\n')
               return(res)
             }
-            
+
             if(sum(indRateFct(0:ran))==0){ # Rate function contains only zeros.
               intHaz <- 0
             } else {
@@ -877,8 +879,8 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
               }
             }
           }
-        nextEventMatrix[i,1] <- destState
-        nextEventMatrix[i,2] <- (timeToNext+lagToWaitingTime)*365.25    # time to next event in days
+          nextEventMatrix[i,1] <- destState
+          nextEventMatrix[i,2] <- (timeToNext+lagToWaitingTime)*365.25    # time to next event in days
       }
       #print(nextEventMatrix)
       nE <- nextEventMatrix[which(nextEventMatrix[,2]==min(as.numeric(nextEventMatrix[,2]))),,drop=F]
@@ -910,105 +912,106 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
       #cat('\n----------\n')
       return(nE)
     }
-    if(ncol(depMatrix) == 2){
-      # Compute for each possible destination state a waiting time.
-      for(i in 1:length(possTr)){
-        tr <- possTr[i]
-        destState <-  as.numeric(names(tr))
-        cS <- codingScheme[codingScheme[,2] %in% currState, 2+c(1:nSubStates)]
-        dS <- codingScheme[codingScheme[,2] %in% destState, 2+c(1:nSubStates)]
-        
-        tageInYears <- trunc(ageInYears)
-        tCalTime <- trunc(1970.001+calTime/365.25)
-        
-        indRateFctDET <- function(x){
-          res <- eval(do.call(tr,
-                              args=list(age=tageInYears+x,calTime=tCalTime+x)))
-          return(res)
-        }
-        ranAccuracyInDays <- (0:(trunc(ran*365.25)+0.99))/365.25
-        detE <- indRateFctDET(ranAccuracyInDays)
-        daysToTrInYears <- (which(detE == Inf)[1] - 1)/365.25
-        if (Inf %in% detE) {
-          timeToNext <- daysToTrInYears
-        } else {
-          u <- -log(1-runif(1))
-          #cat('It: ',i,'--u: ',u,'\n')
-          # Extract individual transition rate (depending on age and calendar time)
-          indRateFct <- function(x){
-            ageIn <- ageInYears+x
-            calIn <- 1970.001+calTime/365.25+x
-            res <- eval(do.call(tr, args=list(age=ageIn,calTime= calIn)))
-            if(TRUE %in% (res<0))
-              stop('I have found negative rate value/s for transition: ',tr,'\n
-                   This is implausible. Please check this. Simulation has been stopped.\n')
-            #cat('x: ',x,' -- res', res,'\n')
-            #cat('\n---\n')
+    #duration argument = no, genarg argument = no
+    if(all(depMatrix[,3]) == 0 && all(depMatrix[,4] == 0)){
+        # Compute for each possible destination state a waiting time.
+        for(i in 1:length(possTr)){
+          tr <- possTr[i]
+          destState <-  as.numeric(names(tr))
+          cS <- codingScheme[codingScheme[,2] %in% currState, 2+c(1:nSubStates)]
+          dS <- codingScheme[codingScheme[,2] %in% destState, 2+c(1:nSubStates)]
+
+          tageInYears <- trunc(ageInYears)
+          tCalTime <- trunc(1970.001+calTime/365.25)
+
+          indRateFctDET <- function(x){
+            res <- eval(do.call(tr,
+                                args=list(age=tageInYears+x,calTime=tCalTime+x)))
             return(res)
           }
-          if(sum(indRateFct(0:ran))==0){ # Rate function contains only zeros.
-            intHaz <- 0
+          ranAccuracyInDays <- (0:(trunc(ran*365.25)+0.99))/365.25
+          detE <- indRateFctDET(ranAccuracyInDays)
+          daysToTrInYears <- (which(detE == Inf)[1] - 1)/365.25
+          if (Inf %in% detE) {
+            timeToNext <- daysToTrInYears
           } else {
-            # Integrated hazard at max. value
-            intHaz <- try(integrate(indRateFct, lower=0, upper=ran)$value, silent=TRUE)
-            if(inherits(intHaz, 'try-error')){
-              intHaz <- integrate(indRateFct, lower=0, upper=ran, stop.on.error = FALSE, rel.tol = 0.01)$value
+            u <- -log(1-runif(1))
+            #cat('It: ',i,'--u: ',u,'\n')
+            # Extract individual transition rate (depending on age and calendar time)
+            indRateFct <- function(x){
+              ageIn <- ageInYears+x
+              calIn <- 1970.001+calTime/365.25+x
+              res <- eval(do.call(tr, args=list(age=ageIn,calTime= calIn)))
+              if(TRUE %in% (res<0))
+                stop('I have found negative rate value/s for transition: ',tr,'\n
+                   This is implausible. Please check this. Simulation has been stopped.\n')
+              #cat('x: ',x,' -- res', res,'\n')
+              #cat('\n---\n')
+              return(res)
             }
-          }
-          # If transformed random variate exceeds max. value of integr. hazard, we will not find a finite random waiting time.
-          if(u<=intHaz){
-            invHazFct <- function(x){
-              #cat('x: ',x,'\n')
-              try.res <- try(integrate(indRateFct, lower=0, upper=x)$value-u, silent=TRUE)
-              #print(try.res)
-              if(inherits(try.res, 'try-error')){
-                #cat('Seemingly, divergent intergral for ID ',id,
-                # ' in state ',currState,' at age ',currAge,' at time ',calTime, ' to state ',destState,
-                #  ' for random number: ',u,'\n')
-                try.res <- integrate(indRateFct, lower=0, upper=x, stop.on.error = FALSE, rel.tol = 0.01)$value-u
-              }
-              #cat('res: ',try.res,'\n-----\n')
-              return(try.res)
-            }
-            # Find random waiting time.
-            timeToNext <- uniroot(invHazFct,interval=c(0,ran))$root
-          } else {
-            timeToNext <- Inf
-          }
-        }
-        
-        nextEventMatrix[i,1] <- destState
-        nextEventMatrix[i,2] <- (timeToNext+lagToWaitingTime)*365.25    # time to next event in days
-      }
-      #print(nextEventMatrix)
-      nE <- nextEventMatrix[which(nextEventMatrix[,2]==min(as.numeric(nextEventMatrix[,2]))),,drop=F]
-      if(dim(nE)[1]>1)
-        nE <- nE[1,,drop=F]
-      if(nE[1,2]!=Inf){
-        # Cal. time of next event of individual. (If there is one.)
-        tt <- calTime + as.numeric(nE[1,2])
-        #print(tt)
-        #cat(nE[1,1],'---',tt,'\n')
-        # Check whether next event implies school enrollment. If yes, adjust transition time to ensure that the individual
-        # enters school at Sept. 1 in the year he/she turns seven.
-        if(schoolEnrol){ # Is school enrollment considered in this simulation model? Yes, then continue; otherwise skip this part
-          if(isSchoolEnrolment(currState,nE[1,1])){
-            enYear <- getYear(tt)
-            if(getMonth(tt) <= monthSchoolEnrol) {
-              enDate <- getInDays_my(enYear, monthSchoolEnrol)
+            if(sum(indRateFct(0:ran))==0){ # Rate function contains only zeros.
+              intHaz <- 0
             } else {
-              enYear <- enYear+1
-              enDate <- getInDays_my(enYear, monthSchoolEnrol)
+              # Integrated hazard at max. value
+              intHaz <- try(integrate(indRateFct, lower=0, upper=ran)$value, silent=TRUE)
+              if(inherits(intHaz, 'try-error')){
+                intHaz <- integrate(indRateFct, lower=0, upper=ran, stop.on.error = FALSE, rel.tol = 0.01)$value
+              }
             }
-            diffToEn <- as.numeric(enDate-tt)
-            nE[1,2] <- as.numeric(nE[1,2]) + diffToEn
+            # If transformed random variate exceeds max. value of integr. hazard, we will not find a finite random waiting time.
+            if(u<=intHaz){
+              invHazFct <- function(x){
+                #cat('x: ',x,'\n')
+                try.res <- try(integrate(indRateFct, lower=0, upper=x)$value-u, silent=TRUE)
+                #print(try.res)
+                if(inherits(try.res, 'try-error')){
+                  #cat('Seemingly, divergent intergral for ID ',id,
+                  # ' in state ',currState,' at age ',currAge,' at time ',calTime, ' to state ',destState,
+                  #  ' for random number: ',u,'\n')
+                  try.res <- integrate(indRateFct, lower=0, upper=x, stop.on.error = FALSE, rel.tol = 0.01)$value-u
+                }
+                #cat('res: ',try.res,'\n-----\n')
+                return(try.res)
+              }
+              # Find random waiting time.
+              timeToNext <- uniroot(invHazFct,interval=c(0,ran))$root
+            } else {
+              timeToNext <- Inf
+            }
           }
+
+          nextEventMatrix[i,1] <- destState
+          nextEventMatrix[i,2] <- (timeToNext+lagToWaitingTime)*365.25    # time to next event in days
         }
-        # Enqueue new event (if there is one).
-        queue <<- rbind(queue, c(id, t.clock, currState, currAge - lagToWaitingTime*365.25, nE[1,1], nE[1,2], birthTime, initState, isMig))
-      }
-      #cat('\n----------\n')
-      return(nE)
+        #print(nextEventMatrix)
+        nE <- nextEventMatrix[which(nextEventMatrix[,2]==min(as.numeric(nextEventMatrix[,2]))),,drop=F]
+        if(dim(nE)[1]>1)
+          nE <- nE[1,,drop=F]
+        if(nE[1,2]!=Inf){
+          # Cal. time of next event of individual. (If there is one.)
+          tt <- calTime + as.numeric(nE[1,2])
+          #print(tt)
+          #cat(nE[1,1],'---',tt,'\n')
+          # Check whether next event implies school enrollment. If yes, adjust transition time to ensure that the individual
+          # enters school at Sept. 1 in the year he/she turns seven.
+          if(schoolEnrol){ # Is school enrollment considered in this simulation model? Yes, then continue; otherwise skip this part
+            if(isSchoolEnrolment(currState,nE[1,1])){
+              enYear <- getYear(tt)
+              if(getMonth(tt) <= monthSchoolEnrol) {
+                enDate <- getInDays_my(enYear, monthSchoolEnrol)
+              } else {
+                enYear <- enYear+1
+                enDate <- getInDays_my(enYear, monthSchoolEnrol)
+              }
+              diffToEn <- as.numeric(enDate-tt)
+              nE[1,2] <- as.numeric(nE[1,2]) + diffToEn
+            }
+          }
+          # Enqueue new event (if there is one).
+          queue <<- rbind(queue, c(id, t.clock, currState, currAge - lagToWaitingTime*365.25, nE[1,1], nE[1,2], birthTime, initState, isMig))
+        }
+        #cat('\n----------\n')
+        return(nE)
     }
     else
       for(i in 1:length(possTr)){
@@ -1016,7 +1019,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
         destState <-  as.numeric(names(tr))
         cS <- codingScheme[codingScheme[,2] %in% currState, 2+c(1:nSubStates)]
         dS <- codingScheme[codingScheme[,2] %in% destState, 2+c(1:nSubStates)]
-        
+
         tageInYears <- trunc(ageInYears)
         tCalTime <- trunc(1970.001+calTime/365.25)
         indRateFctDET <- function(x){
@@ -1107,26 +1110,26 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     }
     #cat('\n----------\n')
     return(nE)
-    
-  }
-  
-  # ----------------------------------------------------------------------------------------------------------------------
-  # ----------------------------------------------------------------------------------------------------------------------
-  # E. INITIALIZATION
-  # ----------------------------------------------------------------------------------------------------------------------
-  # ----------------------------------------------------------------------------------------------------------------------
+
+    }
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+# E. INITIALIZATION
+# ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
   # Compute next events for members of starting population
   cat('Initialization ... \n')
   time_init_start = Sys.time()
-  print(paste("Starting at: ", time_init_start))
-  
+  print(paste("Starting initialization at: ", time_init_start))
+
   if(length(fertTr)>0){
     fertTrExpanded <- buildFertTrExpanded()
   }
   if(schoolEnrol){
     eduTrExpanded <- buildEduTrExpanded()
   }
-  
+
   birthTimeInDays <- getInDays(initPop[,'birthDate'])
   IN <- matrix(c(initPop[,'ID'], # ID
                  rep(99,nrow(initPop)), # currState (= initState)
@@ -1135,9 +1138,9 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
                  birthTimeInDays, # birth time in days
                  rep(99,nrow(initPop)),  # initState
                  rep(0,nrow(initPop))), # is migrant (-> no)
-               ncol=7, nrow=nrow(initPop))
+            ncol=7, nrow=nrow(initPop))
   IN[,2] <- IN[,6] <- codingScheme[match(initPop[,'initState'], codingScheme[,1]),2]
-  
+
   if(TRUE %in% (IN[,3]<0)) {
     cat("There are persons born later than simulation starting date in the initial population. Related IDs are: ")
     negAge <- IN[,1][IN[,3]<0]
@@ -1154,17 +1157,17 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
     }
     stop("Error: Older than max. age in initial population.")
   }
-  
+
   maxId <- max(IN[,1])
-  
+
   init <- apply(IN, 1, getNextStep)
-  
-  
+
+
   # If immigrants enter the population, compute next events for them.
   if(!is.null(immigrPop)){
     #IM <- data.frame(ID=immigrPop[,'ID'], currState=immigrPop[,'immigrInitState'], age=getAgeInDays(immigrPop[,'immigrDate'],immigrPop[,'birthDate']),
     #                 calTime=getInDays(immigrPop[,'immigrDate']),stringsAsFactors=FALSE)
-    
+
     # Check whether migrants are already born when they migrate
     if(TRUE %in% (immigrPop$immigrDate<immigrPop$birthDate)){
       cat("In the immigration population, there are persons who are not yet born when they immigrate. Related IDs are: ")
@@ -1192,7 +1195,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
       }
       stop("Error: Migrate after simulation ending date.")
     }
-    
+
     immigrTimeInDays <- getInDays(immigrPop$immigrDate)
     birthTimeInDays <- getInDays(immigrPop$birthDate)
     IM <- matrix(c(immigrPop[,'ID'], # ID
@@ -1204,9 +1207,9 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
                    rep(1,nrow(immigrPop))), # is migrant (-> yes)
                  ncol=7, nrow=nrow(immigrPop))
     IM[,2] <- IM[,6] <- codingScheme[match(immigrPop[,'immigrInitState'], codingScheme[,1]),2]
-    
+
     maxId <- max(IN[,1], IM[,1])
-    
+
     # Check whether all migrants are younger than maxAge when they migrate
     ageIm <- IM[,3]/365.25 # age at immigration in years
     if(TRUE %in% (ageIm>maxAge)){
@@ -1217,30 +1220,32 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
       }
       stop("Error: Migrants in the input data are older than 'maxAge'.")
     }
-    
+
     imit <- apply(IM, 1, getNextStep, isIMInitEvent=T)
-    
+
     immigrInitPop <- immigrPop[,c('ID','birthDate','immigrInitState')]
     colnames(immigrInitPop)[3] <- 'initState'
     initPop <- rbind(initPop, immigrInitPop)
   }
-  
+
   time_init_end = Sys.time()
-  print(paste("Ending at: ", time_init_end))
+  print(paste("Ending initialization at:   ", time_init_end))
   #p_time = (time_init_end - time_init_start)
   #print(paste("#Time needed for initialization: ", p_time))
-  
-  # ----------------------------------------------------------------------------------------------------------------------
-  # ----------------------------------------------------------------------------------------------------------------------
-  # F. SIMULATION
-  # ----------------------------------------------------------------------------------------------------------------------
-  # ----------------------------------------------------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+# F. SIMULATION
+# ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
   # Run simulation either until queue is empty or until simulation horizon has been reached.
   cat('Simulation is running ... \n')
+  time_sim_start = Sys.time()
+  print(paste("Starting simulation at: ", time_sim_start))
   currYear <- trunc(simHorizon[1]/10000)
   cat('Year: ',currYear,'\n')
   while(nrow(queue)>0 & t.clock <= simStopInDays){
-    
+
     # Sort queue according to soonest event to happen.
     queue <- queue[order(queue[,2] + queue[,6]),,drop=F] # columns: 'ID','currTime','currState','currAge','nextState','timeToNextState','birthtime', 'initState', "isMig"; in queue currTime in days since 01-01-1970
     #print_t.clock <- paste(c(getDay(t.clock), getMonth(t.clock), getYear(t.clock)), collapse="/")
@@ -1270,35 +1275,39 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
       # Current transition causes a newborn? If yes, add one to simulation population.
       if(length(fertTr)>0){
         if(isBirthEvent(indS[3],indS[5])){
-          addNewNewborn_dur(birthTime=t.clock, motherID=indS[1], motherState=indS[5])
+            addNewNewborn_dur(birthTime=t.clock, motherID=indS[1], motherState=indS[5])
         }
       }
-      res <- getNextStep(c(indS[c(1,5)], age, t.clock, indS[c(7,8,9)])) # ID, currState, age, calTime, birthtime, initState, isMig
+        res <- getNextStep(c(indS[c(1,5)], age, t.clock, indS[c(7,8,9)])) # ID, currState, age, calTime, birthtime, initState, isMig
       #print(res)
     }
     #cat('\n-----------\n')
   }
   transitions <- transitions[order(transitions[,1]),,drop=F] # columns: ID, From, To, transitionTime, transitionAge
-  
+
   if (nrow(transitions) == 0){
-    
-    transitionsOut <- data.frame(ID=initPop[,'ID'], From= rep(NA,nrow(initPop)),
+
+    transitionsOut <- data.frame(ID=as.numeric(initPop[,'ID']), From= rep(NA,nrow(initPop)),
                                  To=rep(NA,nrow(initPop)), transitionTime = rep(NA,nrow(initPop)),
                                  transitionAge = rep(NA,nrow(initPop)), stringsAsFactors = FALSE)
     cat('Simulation has finished.\n')
+    time_sim_end = Sys.time()
+    print(paste("Ending simulation at: ", time_sim_end))
     cat('Beware that along the simulation horizon the individual/s considered do/es not experience any transition/s.\n')
     cat('------------------\n')
-    
+
   } else {
-    
+
     cat('Simulation has finished.\n------------------\n')
-    
-    #     ----------------------------------------------------------------------------------------------------------------------
-    #     ----------------------------------------------------------------------------------------------------------------------
-    #     G. GENERATE OUTPUT
-    #     ----------------------------------------------------------------------------------------------------------------------
-    #     ----------------------------------------------------------------------------------------------------------------------
-    
+    time_sim_end = Sys.time()
+    print(paste("Ending simulation at: ", time_sim_end))
+
+#     ----------------------------------------------------------------------------------------------------------------------
+#     ----------------------------------------------------------------------------------------------------------------------
+#     G. GENERATE OUTPUT
+#     ----------------------------------------------------------------------------------------------------------------------
+#     ----------------------------------------------------------------------------------------------------------------------
+
     indCodesTo <- match(transitions[,2], codingScheme[,2]) # transform numerical state codes to strings according to codingScheme
     transTo <- codingScheme[indCodesTo,1]
     indCodesFrom <- match(transitions[,3], codingScheme[,2])
@@ -1308,17 +1317,18 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
                                  transitionAge = round(transitions[,5]/365.25,2),
                                  stringsAsFactors = FALSE)
   }
-  
+
   pop <- merge(initPop, transitionsOut, all=T, by='ID')
   pop <- pop[order(as.numeric(pop[,1]), as.numeric(pop[,7])),]
-  
+
   if(length(fertTr)>0) {
     colnames(mothers) <- c("motherID", "ID")
     pop <- merge(pop, mothers, by="ID", all.x=TRUE)
     pop <- pop[order(as.numeric(pop[,1]), as.numeric(pop[,7])),]
   }
-  
+
   return(pop)
 }
+
 
 
