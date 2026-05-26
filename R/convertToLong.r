@@ -43,7 +43,7 @@
 #'
 #' \dontrun{
 #' # Run microsimulation before, e.g., the complex example
-#' # described on the help page of the function \link{micSim} and \link{micSimLink}.
+#' # described on the help page of the function \link{micSim}.
 #'
 #' pop <- micSim(initPop, immigrPop, transitionMatrix, absStates, initStates, initStatesProb,
 #'         maxAge, simHorizon, fertTr)
@@ -231,17 +231,5 @@ convertToLongFormat <- function(pop, migr=FALSE) {
   popLong <- popLong[,c(1,2,7,3,4,5,6,8,9,idCovs)]
   return(popLong)
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
