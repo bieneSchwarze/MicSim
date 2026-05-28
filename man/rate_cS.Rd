@@ -7,13 +7,13 @@
 rate_cS(allTr)
 }
 \arguments{
-\item{allTr}{a matrix containing names of all transition rate functions.}
+\item{allTr}{A matrix containing names of all transition rate functions.}
 }
 \value{
 A dependency matrix
 }
 \description{
-Helper function for MicSim.
+Helper function to track arguments used by transition rate functions and if intergenerational transmission is used for the microsimulation.
 A function for building a matrix containing the arguments of the transition rate functions.
 }
 \details{
