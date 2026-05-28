@@ -464,9 +464,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
         stop('The sum of the probabilities to assign initial states to newborns must equal 1.')
     }
   }
-  if(any(depMatrix[,4] != 0)) {
-    stop('There is an impossible transition rate argument, please double check.')
-  }
+
   # check whether all functions delivering transition rates deliver vectors of rates as output (necessary for integration procedure later on)
   allTr <- unique(as.vector(transitionMatrix)[as.vector(transitionMatrix) !="0"])
   simStartInDays <- getInDays(simHorizon[1])
@@ -480,6 +478,9 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
   ranAge <- c(minAge,maxAge)
   ran <- min(c(diff(ranYear), diff(ranAge)))
   depMatrix <- rate_cS(allTr)
+  if(any(depMatrix[,4] != 0)) {
+    stop('There is an impossible transition rate argument, please double check.')
+  }
   for (tr in 1:length(depMatrix)) {
     if(any(depMatrix[,3] == 1)){
       tr_dur <- rownames(depMatrix)[depMatrix[,3] != 0]
