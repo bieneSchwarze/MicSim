@@ -21,7 +21,7 @@ The vignettes included in this package provide a more detailed explanation of ho
 
 ### Installing the micsimlink-v1.0 Version of MicSim
 
-A dedicated tagged release of the MicSimLink extension is available under the tag `micsimlink-v1.0` in the GitHub repository. It is possible to install this specific version directly from GitHub using the remotes package (https://remotes.r-lib.org/).
+A dedicated tagged release of the MicSimLink extension is available under the tag `micsimlink-v1.0` in the GitHub repository. It is possible to install this specific version directly from GitHub using the [remotes package] (https://remotes.r-lib.org/).
 
 #### Step-by-step installation
 
