@@ -101,7 +101,7 @@
 #' #
 #' # Possible absorbing states are "dead" and "rest".
 #' # (The latter indicates leaving the population because of emigration).
-#' # The accordant transition rate functions are named "mortRates" and "emigrRates".
+#' # The corresponding transition rate functions are named "mortRates" and "emigrRates".
 #' # (Again, naming is up to the user.)
 #'
 #' absTransitions <- rbind(c("dead","mortRates"),c("rest","emigrRates"))

@@ -1,0 +1,363 @@
+---
+title: "EPC_2026_Microsimulation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{EPC_2026_Microsimulation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(tidyverse)
+library(glue)
+```
+
+In this vignette we will run a simple microsimulation. 
+You can also check out the examples of the `MicSim()` and `MicSimlink()` functions for more.
+
+## Definition of the Simulation Frame
+
+These are the basics that all microsimulation needs: 
+- max Age: the maximum age that people can reach in a simulation
+- Simulation horizon: from when until when the simulation runs
+- State Space: the collection of attributes that individuals can take in the simulation
+
+```{r creating variables}
+invisible(gc())
+rm(list = ls())
+set.seed(321342)
+
+maxAge <- 100
+
+# Defining simulation horizon
+startDate <- 20000101 # yyyymmdd
+endDate   <- 20231231 # yyyymmdd
+simHorizon <- c(startDate=startDate, endDate=endDate)
+
+sex <- c("m", "f")
+homeowner <- c("h", "r") #simplification!
+fert <- c("0","1","2","3", "4+")
+
+stateSpace <- expand.grid(sex=sex, homeowner = homeowner, fert=fert)
+absStates <- "dead"
+```
+
+## Reading in the Initial Population
+Loading in data and making sure that everything is named correctly.
+When using `MicSim` the `initpop` **has** to be named exactly like you can see below, including the capitalization.
+
+```{r loading initial population}
+#data(initpop_epc_example)
+load("EPC_data/initpop_epc_example.rda")
+
+initpop <- initpop_epc_example %>% 
+  rename(ID = id, birthDate = birthdate, initState = initState) %>% 
+  as.data.frame()
+```
+
+## Defining Transition Rates
+
+In this step we define our transition rate functions using data prepared before.
+The data preparation is documented in the corresponding vignette "EPC_2026_Data_Preparation".
+
+We start with mortality:
+First we clean up the data we use for this example a little. 
+These are just a matrix containing the age-period rate of mortality for men and women separately.
+
+These matrices are used then by the corresponding transition rate **function**.
+`MicSim` needs those functions to tell it where to find the transition rate input.
+In this example, the function looks up the correct value in the corresponding matrix.
+For your research you might want to define transition rates differently, which is fine.
+
+Importantly, a transition rate always has to be given for at least the whole age range covered in `MicSim` [0,`maxAge`].
+Calendar time, `calTime`, has to be given as an argument, but doesn't necessarily need to be reflected in the function (in most cases you probably want it to be).
+
+```{r transition rates}
+#data(epc_mortality)
+epc_mortality <- load("EPC_data/epc_mortality.rda")
+
+unique(mort_es$age)
+
+mort_es <- mort_es %>%
+  filter(age != "110+") %>% 
+  filter(year >= 2000) %>%
+  mutate(
+    age = as.numeric(age),
+    female = as.numeric(female),
+    male = as.numeric(male)
+  ) %>%
+  filter(age <= 100)
+
+# Create matrices
+mort_male <- mort_es %>%
+  select(age, year, male) %>%
+  pivot_wider(names_from = year, values_from = male) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+mort_female <- mort_es %>%
+  select(age, year, female) %>%
+  pivot_wider(names_from = year, values_from = female) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+# Rate functions
+mortRates_m<- function(age, calTime) {
+  rate <- mort_male[as.character(as.integer(age)), as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+mortRates_f <- function(age, calTime) {
+  rate <- mort_female[as.character(as.integer(age)), as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+```
+
+We do the same thing we did for fertility also for mortality:
+- Loading data in
+- Creating matrices of data for transition rates
+- Defining transition rate functions
+
+```{r loading fertility data}
+#data(epc_fertility)
+epc_fertility <- load("EPC_data/epc_fertility.rda")
+
+# Filter fertility data
+fert_parity <- fert_parity %>%
+  complete(
+    age = 0:100,
+    year = unique(fert_parity$year),
+    fill = list(asfr_0 = 0, asfr_1 = 0, asfr_2 = 0, asfr_3 = 0, asfr_4plus = 0)
+  ) %>%
+  mutate(
+    across(starts_with("asfr_"), 
+           ~ if_else(age < 15 | age >= 49, 0, .))
+  )
+
+# Create matrices
+fert_0_1 <- fert_parity %>%
+  select(age, year, asfr_0) %>%
+  pivot_wider(names_from = year, values_from = asfr_0) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+fert_1_2 <- fert_parity %>%
+  select(age, year, asfr_1) %>%
+  pivot_wider(names_from = year, values_from = asfr_1) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+fert_2_3 <- fert_parity %>%
+  select(age, year, asfr_2) %>%
+  pivot_wider(names_from = year, values_from = asfr_2) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+fert_3_4 <- fert_parity %>%
+  select(age, year, asfr_3) %>%
+  pivot_wider(names_from = year, values_from = asfr_3) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+# Rate functions
+fertRates_0_1 <- function(age, calTime) {
+  rate <- fert_0_1[as.character(as.integer(age)),
+                   as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+fertRates_1_2 <- function(age, calTime) {
+  rate <- fert_1_2[as.character(as.integer(age)),
+                   as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+fertRates_2_3 <- function(age, calTime) {
+  rate <- fert_2_3[as.character(as.integer(age)),
+                   as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+fertRates_3_4 <- function(age, calTime) {
+  rate <- fert_3_4[as.character(as.integer(age)),
+                   as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+```
+
+And finally a homeownership rate. This one is the only one that comes from data that are not publicly available.
+Again, we follow a similar process, except that we already have the correct matrix format.
+
+```{r create homeownership function}
+#data(epc_ho_matrix)
+epc_ho_matrix <- load("EPC_data/epc_ho_matrix.rda")
+
+ownhome <- function(age, calTime) {
+  age_int <- as.integer(age)
+  year_idx <- as.character(min(as.integer(calTime[1]), 2020))
+  
+  rate <- ho_matrix[as.character(age_int), year_idx]
+  rate[age_int < 20 | age_int > 70] <- 0
+  return(rate)
+}
+
+```
+
+We plot this rate (we plot the mean for easier visualization):
+
+```{r plot homeownership}
+# Average across all years by age
+ho_avg <- rowMeans(ho_matrix, na.rm = TRUE)
+age <- as.numeric(rownames(ho_matrix))
+
+plot(age, ho_avg, 
+     type = "l", 
+     lwd = 2, 
+     col = "steelblue",
+     xlab = "Age", 
+     ylab = "Homeownership rate",
+     main = "Mean homeownership rate by age")
+```
+
+Now we need to construct a few other matrices that `micSim` needs:
+
+These all transport the information of which transition rate function corresponds to which transition.
+We differentiate between non-absorbing and absorbin states (`dead` is the absorbing state considered here).
+
+```{r matrices}
+fertTrMatrix <- cbind(c("f/0->f/1",
+                        "f/1->f/2",
+                        "f/2->f/3", 
+                        "f/3->f/4+"),
+                      c("fertRates_0_1", 
+                        "fertRates_1_2", 
+                        "fertRates_2_3", 
+                        "fertRates_3_4" ))
+
+homatrix <- cbind("r->h", "ownhome")
+
+allTransitions <- rbind(fertTrMatrix, homatrix)
+
+absTransitions <- cbind(c("f/dead","m/dead"),
+                      c("mortRates_f", "mortRates_m"))
+
+```
+
+The `micSim` package has a function (`buildTransitionMatrix`) to bind all the individual matrices together into the correct input `MicSim` needs:
+Always double check that this matrix is actually correct!
+
+```{r transition matrix}
+transitionMatrix <- buildTransitionMatrix(allTransitions=allTransitions,
+                                          absTransitions=absTransitions,
+                                          stateSpace=stateSpace)
+
+head(transitionMatrix)
+```
+
+Since we provide fertility rates, we also need to tell `micSim` which transitions control fertility:
+
+```{r fertility matrix}
+fertTr <- fertTrMatrix[,1]
+print(fertTr)
+```
+
+We provided fertility, so `micSim`will add newborns. 
+This means, we need to tell `micSim` which states it should assign to children.
+For this simulation we only want newborns to differ between being "male" and "female".
+So we assign these states with the probabilities below:
+
+```{r states}
+varInitStates <- rbind(c("m","r", "0"),c("f", "r", "0"))
+initStatesProb <- c(0.515,0.485)
+```
+
+Since this microsimulation does not use any links, we can use the standard `micsim` function. We have restricted the initpop to the first 500, to make computation quicker for this workshop.
+In general, this is a very short simulation, depending on you research question you may want a longer simulation horizon, but this will again increase computational resources. We run this microsimulation with the full population.
+
+```{r simulation}
+set.seed(321342)
+
+pop <- micSim(initPop=initpop[1:500,],
+              transitionMatrix=transitionMatrix, absStates=absStates,
+              varInitStates=varInitStates, initStatesProb = initStatesProb, maxAge=maxAge, simHorizon=simHorizon, fertTr=fertTr)
+```
+
+Now that we have an output, we can see what it look like 
+(we remove censored people here):
+
+```{r table}
+pop %>%
+  filter(is.na(motherID)) %>%
+  filter(!if_any(-motherID, is.na)) %>%
+  head()
+```
+
+As you can see, `MicSim` has a very specific output. 
+We can make this more readable by converting it to a long format.
+This makes it easier to see how long individuals spent in each state:
+
+```{r simulation long format}
+long <- convertToLongFormat(pop, migr = FALSE)
+head(long)
+```
+
+If we want to do some basic plots, we should make age more readable:
+
+```{r df for plotting}
+pop_plot <- long %>%  mutate(
+    agestart = getAgeInDays(Tstart, birthDate) / 365.25,
+    agestop = getAgeInDays(Tstop, birthDate) / 365.25,
+  )
+  
+```
+
+Since we only had very few individuals in our simulation over a short time, 
+there won't be that many transitions captured. Still, we can plot fertility and
+mortality:
+
+```{r fertility plot, warning=FALSE}
+
+plot_fertility <- pop_plot %>%
+  filter(grepl("^[0-9]->", OD)) %>%
+  mutate(
+    od_orig = as.numeric(substr(OD, 1, 1)),
+    od_dest = as.numeric(substr(OD, 4, 4))
+  ) %>%
+  filter(fert == od_orig)
+
+ggplot(plot_fertility, aes(agestop, fill = factor(od_dest))) +  
+  geom_density(alpha = 0.4) +  
+  scale_fill_viridis_d(option = "plasma", begin = 0.2, end = 0.8) +  
+  labs(title = "Age at fertility transitions", 
+       x = "Age at transition", 
+       y = "Density",
+       fill = "Transition to") +  
+  theme_minimal(base_size = 12) +  
+  theme(legend.position = "right",  
+        panel.grid.major.x = element_blank())
+```
+
+```{r mortality plot}
+
+pop_plot_dead <- pop_plot %>%
+  filter(OD == "dead")
+
+ggplot(pop_plot_dead, aes(agestop, fill = sex)) +  
+  geom_density(alpha = 0.6) +  
+  scale_fill_viridis_d(option = "plasma", begin = 0.25, end = 0.85) +
+  labs(x = "Age at death", y = "Density") +  
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.x = element_blank())
+
+```
+
+
+Feel free to experiment yourself!

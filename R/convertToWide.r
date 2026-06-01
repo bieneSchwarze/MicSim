@@ -36,14 +36,14 @@
 #'
 #'
 convertToWideFormat <- function(pop){
-  
+
   giveSeq <- function(nu){
     return(1:nu)
   }
-  
+
   if("motherID" %in% colnames(pop))
     pop <- pop[,!(colnames(pop) %in% "motherID")]
-  
+
   popTemp <- pop
   ns <-  data.frame(table(popTemp$ID),stringsAsFactors=FALSE)
   ns <- ns[order(as.numeric(as.character(ns[,1]))),]
@@ -58,5 +58,4 @@ convertToWideFormat <- function(pop){
   popWide$ns[which(is.na(popWide$transitionTime.1))] <- 0
   return(popWide)
 }
-
 

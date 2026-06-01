@@ -1,0 +1,576 @@
+---
+title: "EPC_2026_Data_Preparation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Data_Preparation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+Load the packages that we will be using for this process:
+
+```{r setup}
+#install_from github here
+library(dplyr)
+library(readr)
+library(stringr)
+library(dbplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(forcats)
+```
+
+Create a base population of 5000 individuals, taking into account age, fertility and homeownership.
+For this workshop, we'll also only show one country, Spain.
+
+For this example we only use publicly available, open access data. This is to show you one path of building an initial population, even when you may not have all the data you would want. In a lot of cases you probably have access to microdata and can build your initial population from that.
+
+But for this example, all the data can also be downloaded here:
+
+https://ec.europa.eu/eurostat/databrowser/view/demo_pjan/default/table?lang=en&category=demo.demo_pop
+
+https://ec.europa.eu/eurostat/databrowser/view/ilc_lvho02__custom_21562534/default/table
+
+All cleaned data are available in the package, but the cleaning can be found here:
+
+```{r load and prepare raw data, eval=FALSE, echo=FALSE}
+#invisible(gc())
+#rm(list = ls())
+# ============================================================================
+# 1. LOAD AND PREPARE RAW DATA
+# ============================================================================
+
+# Load population data (by age and sex)
+df_pjan_raw <- read_csv(
+  "EPC_external_data/demo_pjan__custom_21562150_linear_2_0.csv",
+  col_types = cols(.default = col_character())
+)
+
+# Load housing data (tenure status by household composition)
+df_housing_raw <- read_csv(
+  "EPC_external_data/ilc_lvho02__custom_21562534_linear_2_0.csv",
+  col_types = cols(.default = col_character())
+)
+
+# ============================================================================
+# Preparation of Raw Data
+# ============================================================================
+
+unique(df_pjan_raw$age)
+unique(df_pjan_raw$sex)
+head(df_pjan_raw)
+
+# For now keep only Spain and clean (most complete data )
+pop_structure <- df_pjan_raw %>%
+  filter(
+    `Geopolitical entity (reporting)`  == "Spain",
+    !is.na(`OBS_VALUE`),
+    age != "TOTAL",
+    age != "UNK"
+  ) %>%
+  mutate(
+    population = as.numeric(`OBS_VALUE`),
+    year = as.integer(`TIME_PERIOD`)
+  ) %>%
+  filter(!is.na(age), !is.na(sex), !is.na(population)) %>%
+  select(year, age, sex, population)
+
+#save(pop_structure, file = "pjan_clean.Rda")
+
+# Extract Spain housing data: home ownership rates
+
+head(df_housing_raw$OBS_VALUE[df_housing_raw$`Household composition` == "Total"])
+
+housing_es <- df_housing_raw %>%
+  filter(
+    `Geopolitical entity (reporting)` == "Spain",
+    hhcomp == "TOTAL",
+    !is.na(`OBS_VALUE`),
+  ) %>%
+  mutate(
+    obs = `OBS_VALUE`,
+    year = as.integer(`TIME_PERIOD`)
+  ) %>%
+  select(year, tenure, obs)
+
+#save(housing_es, file = "ilc_lvho02_sp_cl.rda")
+```
+
+If the first step is done, load in cleaned data (also available in the package):
+
+```{r load .rda files}
+invisible(gc())
+rm(list = ls())
+
+#data(pjan_clean)
+pjan_clean <- load("EPC_data/pjan_clean.rda")
+#data(ilc_lvho02_sp_cl)
+ilc_lvho02_sp_cl <- load("EPC_data/ilc_lvho02_sp_cl.rda")
+
+set.seed(321342)
+```
+
+
+```{r clean age}
+#### Clean Age ####
+unique(pop_structure$age)
+
+pop_es <- pop_structure %>% 
+  filter(!age %in% c("Y_LT1", "Y_OPEN")) %>% 
+  mutate(age = as.numeric(str_remove(age, "^Y")))
+
+```
+
+First we want averages of the population per age and sex.
+
+```{r filter data}
+# Age distribution
+pop_avg <- pop_es %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(age, sex) %>%
+  summarise(
+    population = mean(population, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(sex = tolower(sex)) #some more sneaky cleaning
+
+print(pop_avg %>% 
+        group_by(sex) %>% 
+        summarise(avg_pop = sum(population, na.rm = TRUE), .groups = "drop"))
+
+# Create sampling weights
+pop_weights <- pop_avg %>%
+  mutate(
+    total_pop = sum(population, na.rm = TRUE),
+    weight = population / total_pop
+  ) %>%
+  select(age, sex, weight)
+```
+
+Next we prep the homeownership data. Since housing data often isn't available before 2000 (such as this one, too) we use the crude 2007 ownership for the initial population.
+
+```{r filter ownership}
+print(housing_es)
+
+# Get ownership rate
+ownership <- housing_es %>%
+  mutate(obs = as.numeric(obs)) %>% 
+  filter(tenure == "OWN", year == 2007) %>%
+  mutate(year = 2000) %>%
+  select(year, obs)
+
+```
+
+Now we need to find fertility. Importantly, we need to know the order of children, since that affects transition rates. Since Eurostat doesn't have data on childless women, we use data from the Human fertility database instead (https://www.humanfertility.org/Country/Country?cntr=ESP)
+
+```{r load fertility data}
+exp_0 <- read.table("EPC_external_data/ex_year_age_parity", 
+         skip = 4,                    
+         col.names = c("year", "age", "E0x", "E1x", "E2x", "E3x","E4x"),
+         fill = TRUE,
+         strip.white = TRUE,
+         stringsAsFactors = FALSE)
+
+
+fert_0 <- exp_0 %>%
+  mutate(
+    # Calculate total exposure for each year-age group
+    total_exposure = E0x + E1x + E2x + E3x + E4x,
+    # Calculate proportions by parity
+    prop_0 = E0x / total_exposure,
+    prop_1 = E1x / total_exposure,
+    prop_2 = E2x / total_exposure,
+    prop_3 = E3x / total_exposure,
+    prop_4plus = E4x / total_exposure
+  ) %>%
+   #Pivot to long format for easier use
+  pivot_longer(
+    cols = starts_with("prop_"),
+    names_to = "parity",
+    values_to = "proportion"
+  ) %>%
+  mutate(
+    parity = str_remove(parity , "prop_"),
+    parity = case_when(
+      parity  == "4plus" ~ "4+",
+      TRUE ~ parity 
+    ) 
+  ) %>% 
+    select(year, age, parity , proportion)
+
+head(fert_0)
+```
+Now we have proportions of women for each parity starting in 1991.
+
+With this, we can start building a synthetic population of 5000 individuals.
+
+```{r building population}
+N <- 5000
+
+sample_indices <- sample(
+  x = 1:nrow(pop_weights),
+  size = N,
+  prob = pop_weights$weight,
+  replace = TRUE
+)
+
+synth <- tibble(
+  id = 1:N,
+  age = pop_weights$age[sample_indices],
+  sex = pop_weights$sex[sample_indices]
+)
+
+head(synth)
+
+# Sex distribution
+print(synth %>% count(sex) %>% mutate(pct = round(n/sum(n)*100, 1)))
+```
+
+Assign our initial population random birthdays:
+
+```{r create initial population random birthdays}
+#Assume people can get born over the range we have data for
+#We create random birthdays but otherwise keep to the age distribution
+
+#assuming we want to start the simulation in 2000
+curr_year <- 2000 
+
+synth <- synth %>%
+  mutate(
+    # Birth year based on current age
+    birth_year = curr_year - age,
+    # Random day within that year for variation
+    day_of_year = sample(1:365, n(), replace = TRUE),
+    # Create birthdate
+    birthdate = make_date(birth_year, 1, 1) + days(day_of_year - 1),
+    # See if we get correct age
+    age_check = curr_year - year(birthdate)
+  )
+
+print(synth$birthdate[1:10])
+print(synth$age[1:10])
+print(synth$age_check[1:10])
+any(synth$age_check != synth$age)
+
+#drop age variables we don't need anymore
+
+synth <- synth %>% 
+  select(- age_check, -birth_year, -day_of_year)
+```
+And for the women a fertility parity corresponding to their age in the year 2000 again. 
+
+```{r fertility parity}
+parity_2000 <- fert_0 %>% 
+  filter(year == 2000) %>% 
+  pivot_wider(names_from = parity, values_from = proportion) %>%
+  select(age, `0`, `1`, `2`, `3`, `4+`)
+
+#Assume age 55 parity for older women
+
+parity_55 <- parity_2000 %>% 
+  filter(age == 55) %>%
+  select(`0`, `1`, `2`, `3`, `4+`)
+max_age <- 100
+parity_2000_filled <- parity_2000 %>%
+  bind_rows(
+    crossing(age = 56:max_age, parity_55)
+  ) %>%
+  bind_rows(
+    tibble(age = 0:11, `0` = 1, `1` = 0, `2` = 0, `3` = 0, `4+` = 0)
+  )
+
+#Join
+
+head(synth)
+
+synth_par <- synth %>% 
+  filter(sex == "f") %>% 
+  left_join(parity_2000_filled, by = "age") %>%
+    mutate(across(c(`0`, `1`, `2`, `3`, `4+`), ~replace_na(., 0))) %>%
+  rowwise() %>% 
+  mutate(
+    parity = if_else(age < 12, "0",
+                     sample(c("0", "1", "2", "3", "4+"),
+                            size = 1,
+                            prob = c(`0`, `1`, `2`, `3`, `4+`)))
+  ) %>%
+  ungroup() %>%
+  select(id, age, sex, birthdate, parity)
+
+```
+
+Plot structure:
+
+```{r plots}
+# Females by age bin
+females <- synth_par %>%
+  mutate(age_bin = cut(age, 
+                       breaks = seq(0, 105, 5), 
+                       labels = paste0(seq(0, 100, 5), "-", seq(4, 104, 5)),
+                       right = FALSE)) %>%
+  group_by(age_bin) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  mutate(sex = "Female", population = count)
+
+# Males by age bin
+males <- synth %>%
+  filter(sex == "m") %>%
+  mutate(age_bin = cut(age, 
+                       breaks = seq(0, 105, 5), 
+                       labels = paste0(seq(0, 100, 5), "-", seq(4, 104, 5)),
+                       right = FALSE)) %>%
+  group_by(age_bin) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  mutate(sex = "Male", population = -count)
+
+# Combine
+df_pyr <- bind_rows(males, females)
+
+# Plot
+ggplot(df_pyr, aes(x = population, y = age_bin, fill = sex)) +
+  geom_bar(stat = "identity", width = 0.8) +
+  geom_vline(xintercept = 0, linewidth = 0.5) +
+  scale_x_continuous(labels = function(x) abs(x)) +
+  scale_fill_viridis_d(option = "viridis") +
+  labs(x = "Population", y = "Age", 
+       title = "Synth Spain: Population pyramid 2000") +
+  theme_minimal(base_size = 13) +
+  theme(panel.grid.major.y = element_blank())
+
+```
+
+We can also plot this:
+
+```{r plots}
+# Females by age and parity
+females_parity <- synth_par %>%
+  group_by(age, parity) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  rename(Alter = age, Parity = parity, Population = count) %>%
+  mutate(Geschlecht = "f")
+
+# Males (no parity)
+males <- synth %>%
+  filter(sex == "m") %>%
+  group_by(age) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  rename(Alter = age, Population = count) %>%
+  mutate(Geschlecht = "m", Parity = "Male")
+
+# Combine and negate males
+df_pyramid <- bind_rows(females_parity, males) %>%
+  mutate(Population = ifelse(Geschlecht == "m", -Population, Population))
+
+# Relative within sex
+sex_totals <- df_pyramid %>%
+  group_by(Geschlecht) %>%
+  summarise(total_sex = sum(abs(Population), na.rm = TRUE), .groups = "drop")
+
+df_pyramid_rel <- df_pyramid %>%
+  left_join(sex_totals, by = "Geschlecht") %>%
+  mutate(Population_rel = Population / total_sex)
+
+# Plot
+ggplot(df_pyramid_rel,
+       aes(x = Alter, y = Population_rel, fill = Parity)) +
+  geom_bar(stat = "identity", width = 1, position = "stack") +
+  geom_hline(yintercept = 0, linewidth = 0.4) +
+  coord_flip() +
+  scale_y_continuous(labels = function(x) abs(x)) +
+  scale_fill_viridis_d(name = "Parity", direction = -1)  +
+  labs(x = "Age", y = "Population proportion") +
+  theme_minimal(base_size = 13)
+```
+
+Lastly, individuals in the population can be either homeowner or not.
+For the initial population we don't account for anything more complicated other
+than restricting individuals younger than 20 from becoming owners.
+
+```{r homeowner building}
+synth <- synth %>%
+  mutate(
+    homeowner = if_else(age < 20, "r", 
+                        if_else(rbinom(n(), size = 1, prob = ownership$obs / 100) == 1, "h", "r"))
+  )
+```
+
+So, this initial population includes age, fertility and whether they own a home or not. 
+
+Because MicSim takes special input we are going to reformat this initPop into the input needed by MicSim:
+
+```{r building initPop}
+synth_full <- synth %>%
+  left_join(synth_par %>% select(id, parity), by = "id") %>%
+  mutate(parity = replace_na(parity, "0")) #men get assigned 0 as a parity
+
+initpop_epc_example <- synth_full %>%
+  mutate(
+    birthdate = as.numeric(format(birthdate, "%Y%m%d")),
+    initState = str_c(sex, homeowner, parity, sep = "/")
+  ) %>%
+  select(id, birthdate, initState)
+
+#save the init pop data
+#save(initpop_epc_example, file = "initpop_epc_example.rda")
+```
+
+For the transitions rates, we also need data. Here we prep this:
+
+We do this for fertility by getting data from the human fertility database (https://www.humanfertility.org/Country/Country?cntr=ESP#age) and add our
+calculated parity probabilities.
+
+```{r load data}
+fert_es <- read.table("EPC_external_data/es_asfr", 
+         skip = 4,                    
+         col.names = c("year", "age", "asfr"),
+         fill = TRUE,
+         strip.white = TRUE,
+         stringsAsFactors = FALSE)
+
+fert_es$age[fert_es$age %in% "12-"] <- 12
+fert_es$age[fert_es$age %in% "55+"] <- 55
+```
+
+Now, since fertility transitions also depend on which number of child it is, we
+take parity into account again:
+
+```{r parity fertility}
+# Parity proportions by age and year (from HFD, 1991-2023)
+shares <- fert_0 %>%
+  select(year, age, parity, proportion) %>%
+  pivot_wider(names_from = parity, values_from = proportion) %>%
+  transmute(
+    year = as.integer(year),
+    age = as.integer(age),
+    prop_0 = as.numeric(`0`),
+    prop_1 = as.numeric(`1`),
+    prop_2 = as.numeric(`2`),
+    prop_3 = as.numeric(`3`),
+    prop_4plus = as.numeric(`4+`)
+  )
+
+# Prepare ASFR data
+fert_rate <- fert_es %>%
+  mutate(
+    age = as.integer(age),
+    year = as.integer(year),
+    asfr = as.numeric(asfr)
+  ) %>%
+  filter(age >= 15, age <= 49, year >= 2000) #49 as cutoff age for fertility
+
+# Decompose ASFR by parity, matching year and age
+fert_parity <- fert_rate %>%
+  left_join(shares, by = c("year", "age")) %>%
+  mutate(
+    asfr_0  = asfr * prop_0,
+    asfr_1  = asfr * prop_1,
+    asfr_2  = asfr * prop_2,
+    asfr_3  = asfr * prop_3,
+    asfr_4plus = asfr * prop_4plus
+  ) %>%
+  select(year, age, asfr, asfr_0, asfr_1, asfr_2, asfr_3, asfr_4plus)
+
+head(fert_parity)
+#save(fert_parity, file = "epc_fertility.rda")
+```
+
+We can quickly plot this rate:
+
+```{r plot}
+plot_dat <- fert_parity %>%
+  mutate(
+    age = as.numeric(age),
+    year = as.numeric(year)
+  ) %>%
+  filter(
+    age >= 15, age <= 49,
+    year >= 2000, year <= 2023
+  ) %>%
+  pivot_longer(
+    cols = c(asfr_0, asfr_1, asfr_2, asfr_3, asfr_4plus),
+    names_to = "parity",
+    values_to = "rate"
+  ) %>%
+  mutate(
+    parity = recode(
+      parity,
+      "asfr_0"     = "0 → 1",
+      "asfr_1"     = "1 → 2",
+      "asfr_2"     = "2 → 3",
+      "asfr_3"     = "3 → 4",
+      "asfr_4plus" = "4+ → 4+"
+    )
+  )
+
+ggplot(plot_dat,
+       aes(x = age, y = rate, group = year, colour = factor(year))) + 
+  geom_line(linewidth = 0.5) +
+  facet_wrap(~ fct_relevel(parity, "0 → 1", "1 → 2", "2 → 3", "3 → 4", "4+ → 4+"), 
+             ncol = 1, scales = "free_y") +
+  scale_x_continuous(breaks = seq(15, 49, 5)) +
+  scale_color_viridis_d(name = "Year") +
+  labs(x = "Age", y = "Parity-specific fertility rate") +
+  theme_minimal(base_size = 13) +
+  theme(
+    strip.text = element_text(size = 12, face = "bold")
+  )
+```
+
+And mortality from the mortality database (https://mortality.org/Country/Country?cntr=ESP):
+
+```{r mortality}
+mort_es <- read.table("EPC_external_data/es_m1x1", 
+                 skip = 3,                    
+                 col.names = c("year", "age", "female", "male", "total"),
+                 fill = TRUE,
+                 strip.white = TRUE,
+                 stringsAsFactors = FALSE)
+
+summary(mort_es)
+head(mort_es)
+
+#save(mort_es, file = "epc_mortality.rda")
+```
+
+Plot:
+
+```{r plots}
+# Convert character columns to numeric
+mort_plot <- mort_es %>%
+  mutate(
+    across(c(female, male, total), ~na_if(., ".")),
+    female = as.numeric(female),
+    male = as.numeric(male),
+    total = as.numeric(total),
+    age = as.numeric(age)
+  ) %>%
+  filter(!is.na(age) & !is.na(female) & !is.na(male)) %>% 
+  filter(age >= 0 & age <= 99)
+
+# Reshape to long format
+mort_plot <- mort_plot %>%
+  pivot_longer(cols = c(female, male), names_to = "sex", values_to = "rate")
+
+mort_plot <- mort_plot %>%
+  mutate(year_group = floor(year / 20) * 20)
+
+# Plot
+ggplot(mort_plot, aes(x = age, y = rate, color = factor(year_group), group = interaction(year, sex))) +
+  geom_line() +
+  facet_wrap(~ sex, ncol = 1) +
+  scale_x_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(x = "Age", y = "Mortality Rate", color = "Year") +
+  theme_minimal(base_size = 13) +
+  theme(
+    strip.text = element_text(size = 12, face = "bold")
+  )
+```
+

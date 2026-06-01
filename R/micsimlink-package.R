@@ -40,7 +40,7 @@
 #' @importFrom "snowfall"  "sfInit" "sfLibrary" "sfExportAll" "sfClusterSetupRNGstream" "sfLapply" "sfStop"
 #' @import "rlecuyer"
 
-globalVariables(c("maxAge", "endDate", "allTransitions", "startDate"))
+globalVariables(c("maxAge", "endDate", "allTransitions", "startDate", "genMatrix"))
 ## usethis namespace: start
 ## usethis namespace: end
 NULL

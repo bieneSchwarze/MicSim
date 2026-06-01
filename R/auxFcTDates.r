@@ -3,7 +3,7 @@
 #' Get from a date given in the numeric format yyyymmdd the number of days elapsed since 1970-01-01
 #'
 #' @usage getInDays(currDate)
-#' @description Function computes the days that have pasted since 1970-01-01 up to the currDate (in the numeric format yyyymmdd)
+#' @description Function computes the days that have passed since 1970-01-01 up to the currDate (in the numeric format yyyymmdd)
 #'
 #' @param currDate current date - Date given as string of the numeric format yyyymmdd.
 #'
@@ -50,13 +50,13 @@ getAgeInDays <- function(currDate, birthDate) {
 #' Get the number of days that have passed from 1970-01-01 till 'yyyymm11'.
 #'
 #' @usage getInDays_my(year, month)
-#' @description Function computes the number of days that have pasted from 1970-01-01 until 'yyyymm11'.
+#' @description Function computes the number of days that have passed from 1970-01-01 until 'yyyymm11'.
 #'
 #' @param year Year for which days elapsed should be computed, i.e., the yyyy in 'yyyymm11'
 #' @param month Month for which days elapsed should be computed, i.e., the mm in 'yyyymm11'
 #'
 #' @rdname getInDays_my
-#' @returns Number of days that have pasted from 1970-01-01 until 'yyyymm11'
+#' @returns Number of days that have passed from 1970-01-01 until 'yyyymm11'
 #' @examples getInDays_my(2020, 12)
 #' @export
 #'
@@ -148,5 +148,4 @@ getInDateFormat <- function(daysSince01011970){
   d <- trunc(getDay(daysSince01011970))
   return(sprintf("%4d%02d%02d", y, m, d))
 }
-
 

@@ -2,7 +2,7 @@
 title: "population_projection"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Examples on Population Projection (Germany) for the MicSim Package}
+  %\VignetteIndexEntry{population_projection}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -40,13 +40,7 @@ Set path to input data files. The path is use-specific and depends where you hav
 a.  [Population in private households along gender and age in 2017](https://www-genesis.destatis.de/datenbank/online/statistic/12211/table/12211-9039/search/s/QmV2JUMzJUI2bGtlcnVuZw%3D%3D) Source: Genesis database federal statistical office
 
 ```{r}
-path <- system.file(
-  "extdata",
-  "data_population_projection/12211-9039_de.csv",
-  package = "MicSim"
-)
-
-lines <- readLines(path, encoding = "latin1")
+lines <- readLines("../inst/extdata/data_population_projection/12211-9039_de.csv", encoding = "latin1")
 lines <- iconv(lines, from = "latin1", to = "UTF-8")
 data_lines <- lines[
   str_detect(lines, "^(männlich|weiblich|;)")
@@ -122,12 +116,7 @@ df_pop_single_age <- df_src %>%
 b.  [Numbers of females along age and number of kids](https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Geburten/Publikationen/Downloads-Geburten/statistischer-bericht-frauen-zahl-geborene-Kinder-endergebnisse-5126106229005.html?nn=208824) Source: Genesis database federal statistical office
 
 ```{r, message=FALSE}
-path <- system.file(
-  "extdata", 
-  "data_population_projection/statistischer-endergebnisse-5126106229005.xlsx",
-  package = "MicSim"
-)
-raw <- readxl::read_excel(path, sheet = "12612-01", col_names = FALSE)
+raw <- readxl::read_excel("../inst/extdata/data_population_projection/statistischer-endergebnisse-5126106229005.xlsx", sheet = "12612-01", col_names = FALSE)
 start_row <- which(raw[[1]] == "Deutschland")
 end_row <- which(stringi::stri_trans_general(raw[[1]], "Latin-ASCII") ==
                  "Fruheres Bundesgebiet (ohne Berlin-West)")
@@ -182,12 +171,8 @@ df_single_age_prop
 c.  [Proportion of childless females along age groups](https://www-genesis.destatis.de/datenbank/online/statistic/12612/table/12612-0052) Source: Genesis database federal statistical office
 
 ```{r}
-path <- system.file(
-  "extdata", 
-  "data_population_projection/12612-0052_de.csv",
-  package = "MicSim"
-)
-lines <- read_lines(path)
+
+lines <- read_lines("../inst/extdata/data_population_projection/12612-0052_de.csv")
 data_lines <- lines[
   str_detect(lines, "^\\d+\\s+bis\\s+unter")
 ]
@@ -371,12 +356,8 @@ a.  Get Age-period-specific rates for 1956-2017 from [Human Fertility Database](
 File name: DEUTNPasfr.txt
 
 ```{r}
-path <- system.file(
-  "extdata", 
-  "data_population_projection/DEUTNPasfrRR.txt",
-  package = "MicSim"
-)
-FR <- read.table(path, 
+
+FR <- read.table("../inst/extdata/data_population_projection/DEUTNPasfrRR.txt", 
          skip = 4,                    
          col.names = c("Year", "Age", "ASFR"),
          fill = TRUE,
@@ -468,12 +449,8 @@ a.  Get Age-period-specific rates for 1990-2020 from [Human Mortality Database](
 File name: Mx_1x1.txt
 
 ```{r}
-path <- system.file(
-  "extdata", 
-  "data_population_projection/Mx_1x1.txt",
-  package = "MicSim"
-)
-MR <- read.table(path, 
+
+MR <- read.table("../inst/extdata/data_population_projection/Mx_1x1.txt", 
                  skip = 3,                    
                  col.names = c("Year", "Age", "Female", "Male", "Total"),
                  fill = TRUE,

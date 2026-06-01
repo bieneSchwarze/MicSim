@@ -1,0 +1,306 @@
+---
+title: "EPC_2026_Linked_Lives"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{EPC_2026_Linked_Lives}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+#reminder for install from github
+library(tidyverse)
+```
+
+Much of this code follows the same setup as our earlier example:
+
+```{r creating variables}
+invisible(gc())
+rm(list = ls())
+set.seed(321342)
+
+maxAge <- 100
+
+# Defining simulation horizon
+startDate <- 20000101 # yyyymmdd
+endDate   <- 20231231 # yyyymmdd
+simHorizon <- c(startDate=startDate, endDate=endDate)
+
+sex <- c("m", "f")
+homeowner <- c("r", "h") #simplification!
+fert <- c("0","1","2","3", "4+")
+
+stateSpace <- expand.grid(sex=sex, homeowner = homeowner, fert=fert)
+absStates <- "dead"
+```
+
+## Loading initial population
+
+```{r initial population}
+#data(initpop_epc_example)
+load("EPC_data/initpop_epc_example.rda")
+
+initpop <- initpop_epc_example %>% 
+  rename(ID = id, birthDate = birthdate, initState = initState) %>% 
+  as.data.frame()
+```
+
+## Defining Transition Rates
+
+```{r load mortality data}
+#data(epc_mortality)
+epc_mortality <- load("EPC_data/epc_mortality.rda")
+
+unique(mort_es$age)
+
+mort_es <- mort_es %>%
+  filter(age != "110+") %>% 
+  filter(year >= 2000) %>%
+  mutate(
+    age = as.numeric(age),
+    female = as.numeric(female),
+    male = as.numeric(male)
+  ) %>%
+  filter(age <= 100)
+
+# Create matrices
+mort_male <- mort_es %>%
+  select(age, year, male) %>%
+  pivot_wider(names_from = year, values_from = male) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+mort_female <- mort_es %>%
+  select(age, year, female) %>%
+  pivot_wider(names_from = year, values_from = female) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+# Rate functions
+mortRates_m<- function(age, calTime) {
+  rate <- mort_male[as.character(as.integer(age)), as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+mortRates_f <- function(age, calTime) {
+  rate <- mort_female[as.character(as.integer(age)), as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+```
+
+Fertility:
+
+```{r load fertility data}
+#data(epc_fertility)
+epc_fertility <- load("EPC_data/epc_fertility.rda")
+
+# Filter fertility data
+fert_parity <- fert_parity %>%
+  complete(
+    age = 0:100,
+    year = unique(fert_parity$year),
+    fill = list(asfr_0 = 0, asfr_1 = 0, asfr_2 = 0, asfr_3 = 0, asfr_4plus = 0)
+  ) %>%
+  mutate(
+    across(starts_with("asfr_"), 
+           ~ if_else(age < 15 | age >= 49, 0, .))
+  )
+
+# Create matrices
+fert_0_1 <- fert_parity %>%
+  select(age, year, asfr_0) %>%
+  pivot_wider(names_from = year, values_from = asfr_0) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+fert_1_2 <- fert_parity %>%
+  select(age, year, asfr_1) %>%
+  pivot_wider(names_from = year, values_from = asfr_1) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+fert_2_3 <- fert_parity %>%
+  select(age, year, asfr_2) %>%
+  pivot_wider(names_from = year, values_from = asfr_2) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+fert_3_4 <- fert_parity %>%
+  select(age, year, asfr_3) %>%
+  pivot_wider(names_from = year, values_from = asfr_3) %>%
+  column_to_rownames("age") %>%
+  as.matrix()
+
+# Rate functions
+fertRates_0_1 <- function(age, calTime) {
+  rate <- fert_0_1[as.character(as.integer(age)),
+                   as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+fertRates_1_2 <- function(age, calTime) {
+  rate <- fert_1_2[as.character(as.integer(age)),
+                   as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+fertRates_2_3 <- function(age, calTime) {
+  rate <- fert_2_3[as.character(as.integer(age)),
+                   as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+fertRates_3_4 <- function(age, calTime) {
+  rate <- fert_3_4[as.character(as.integer(age)),
+                   as.character(as.integer(calTime[1]))]
+  return(rate)
+}
+
+```
+
+For the homeownership rate in a scenario with intergenerational transmission, the function requires data for the years when the mother would be transitioning. Since these data are not present in our example homeownership matrix, we backfilled using the 2005 data that exists.
+
+```{r homeownership rate}
+#data(epc_ho_matrix)
+epc_ho_matrix <- load("EPC_data/epc_ho_matrix.rda")
+
+
+ownhome <- function(age, calTime) {
+  age_int <- as.integer(age)
+  year_idx <- as.character(min(as.integer(calTime[1]), 2020))
+  
+  rate <- ho_matrix[as.character(age_int), year_idx]
+  rate[age_int < 20 | age_int > 70] <- 0
+  return(rate)
+}
+
+```
+
+We plot this rate:
+
+```{r rate plot}
+# Average across all years by age
+ho_avg <- rowMeans(ho_matrix, na.rm = TRUE)
+age <- as.numeric(rownames(ho_matrix))
+
+
+plot(age, ho_avg, 
+     type = "l", 
+     lwd = 2, 
+     col = "steelblue",
+     xlab = "Age", 
+     ylab = "Homeownership rate",
+     main = "Mean homeownership rate by age")
+```
+
+Again we construct the matrices `micSim` needs:
+
+```{r building matrices}
+fertTrMatrix <- cbind(c("f/0->f/1",
+                        "f/1->f/2",
+                        "f/2->f/3", 
+                        "f/3->f/4+"),
+                      c("fertRates_0_1", 
+                        "fertRates_1_2", 
+                        "fertRates_2_3", 
+                        "fertRates_3_4" ))
+
+homatrix <- cbind("r->h", "ownhome")
+
+allTransitions <- rbind(fertTrMatrix, homatrix)
+
+absTransitions <- cbind(c("f/dead","m/dead"),
+                      c("mortRates_f", "mortRates_m"))
+
+```
+
+The transition matrix:
+
+```{r transition matrix}
+transitionMatrix <- buildTransitionMatrix(allTransitions=allTransitions,
+                                          absTransitions=absTransitions,
+                                          stateSpace=stateSpace)
+
+head(transitionMatrix)
+```
+
+What we need for fertility:
+
+```{r fertility matrix}
+fertTr <- fertTrMatrix[,1]
+print(fertTr)
+```
+
+```{r states variables}
+varInitStates <- rbind(c("m","r", "0"),c("f", "r", "0"))
+initStatesProb <- c(0.515,0.485)
+```
+
+## Adding in intergenerational transmission
+
+If you want to link generations together, this is all that is needed:
+
+The $alpha$ is set to 0 in this case and our $beta$ was estimated using data from @beduk2025a.
+In `geninfo` you supply the transition rate that is considered for intergenerational transmission, which ID the individual is linked to, as well as the $alpha$ and $beta$ which are used to transform the original rate of, in this case, the mother.
+
+```{r generation matrix}
+geninfo <- c("ownhome", "motherID", 0, 1.45) 
+
+genMatrix <- build_genMatrix(geninfo)
+
+print(genMatrix)
+```
+
+Now we run the microsimulation, but again, we reduce the amount of individuals in our population. Also, this time we use the new function `micSimLink`.
+
+```{r simulation}
+set.seed(321342)
+#It takes about 2 minutes to complete the simulation!
+poplink <- micSimLink(initPop=initpop[1:5000,],
+                      transitionMatrix=transitionMatrix,
+                      absStates=absStates,
+                      varInitStates=varInitStates,
+                      initStatesProb=initStatesProb,
+                      maxAge=maxAge, simHorizon=simHorizon,
+                      fertTr=fertTr, genMatrix = genMatrix)
+```
+
+Let's look at our output again:
+
+```{r simulation long format}
+#pop_2 <- poplink %>% filter(!is.na(motherID))
+
+pop_long <- convertToLongFormat(poplink, migr = FALSE)
+head(pop_long, 3)
+
+```
+
+```{r plot}
+pop_plot_h <- pop_long %>%  
+  mutate(
+    agestart = getAgeInDays(Tstart, birthDate) / 365.25,
+    agestop = getAgeInDays(Tstop, birthDate) / 365.25,
+    year = as.numeric(substr(Tstop, 1, 4))
+  )  %>%
+  filter(OD == "r->h") %>% 
+  group_by(ID) %>% 
+  slice_max(agestop, na_rm = TRUE) %>% 
+  ungroup()
+
+ggplot(pop_plot_h, aes(x = agestop)) +
+  geom_density(fill = "steelblue", alpha = 0.6) +
+  labs(x = "Age at homeownership transition", 
+       y = "Density",
+       title = "Age distribution of transitions to homeownership") +
+  theme_minimal(base_size = 13)
+```
+
+In an even more complex example it would also be possible to match mothers and fathers together. The syntax for this can also be found in the other examples in the `micSim` package.

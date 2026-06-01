@@ -309,7 +309,7 @@ range(initPop$birthDate)
 # Definition of immigrants entering the population (for illustration purposes, create immigrants
 # randomly)
 M = 20
-immigrDates <- runif(M, min=getInDays(20140101), max=getInDays(20241231))
+immigrDates <- runif(M, min=getInDays(startDate), max=getInDays(endDate))
 immigrAges <- runif(M, min=15*365.25, max=70*365.25)
 immigrBirthDates <- immigrDates - immigrAges
 IDmig <- max(as.numeric(initPop[,"ID"]))+(1:M)
@@ -372,7 +372,7 @@ widowhoodRates <- function(age, calTime){
 # (6) Rates to change educational attainment
 # Set rate to 'Inf' to make transition for age 7 deterministic.
 noToLowEduRates <- function(age, calTime){
-  rate <- ifelse(age==7,Inf,0)
+  rate <- ifelse(age>=7,Inf,0)
   return(rate)
 }
 lowToMedEduRates <- function(age, calTime){

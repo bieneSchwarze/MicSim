@@ -1,0 +1,273 @@
+---
+title: "Short Microsimulation Example with Linked Lives"
+author: "Felix von Heusinger, Sabine Zinn"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Short Microsimulation Example with Linked Lives}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteDepends{MicSim}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  collapse = TRUE,
+  comment = "#")
+```
+
+
+This is a basic microsimulation example with linked lives to illustrate roughly:
+
+1) How the package works 
+
+2) What input the user has to code themselves
+
+3) What's currently possible
+
+I start by giving the necessary parameters the `micSimLink` function requires, which includes definition of the simulation horizon, stateSpace and intial population. Next, the transition rates necessary for calculation are defined. Using these a transition matrix can be constructed. All this comes together to then perform the simulation. For additional documentation please also refer to the [MicSim package](https://CRAN.R-project.org/package=MicSim).
+
+```{r library}
+# Load library
+library(micsimlink)
+```
+
+First, the overall parameters of the simulation have to be given. These include start and enddate, as well as the maximum age to be reached.
+
+```{r Define simulation Horizon}
+#### Define simulation Horizon ####
+
+startDate <- 20140101 
+endDate   <- 20641231 
+simHorizon <- c(startDate=startDate, endDate=endDate)
+
+set.seed(1234)
+
+maxAge <- 100
+
+```
+
+Next, the State Space is defined, which consists of the non-absorbing states (which can be transitioned out of) and the absorbing states (dead, emigrated). Given the focus on linked lives in this example, we only specify fertility and living arrangement. Sex has to be given and cannot be transitioned out of, as well.
+
+```{r Define State Space}
+
+#### Define State Space ####
+
+sex <- c("m", "f")
+livArr <- c("PH", "PA", "A") #PH = Parental Home # PA = Partnership #A = alone
+fert <- c("0","1","2","3+")
+
+
+stateSpace <- expand.grid(sex=sex, livArr = livArr, fert=fert)
+absStates <- c("dead","rest")
+
+head(stateSpace)
+```
+
+Here we simulate a base population. In most other use-cases this should be real data, which is then converted into the format needed by miclink. `getRadInitState` creates the initial state the simulated individuals take using the `stateSpace`.
+
+```{r Create an initial population}
+#### Create an initial population ####
+
+N = 1000 #intentionally small so computation time doesn't get too long 
+#adjust as wanted
+birthDates <- runif(N, min=getInDays(19500101), max=getInDays(20131231)) 
+
+getRandInitState <- function(birthDate){
+  age <- trunc((getInDays(simHorizon[1]) - birthDate)/365.25) 
+  s1 <- sample(sex,1, prob=c(0.8,0.2))#oversampling men to make matching easier
+  s2 <- ifelse(age<=18, livArr[1], sample(livArr,1))
+  s3 <- ifelse(age<=18, fert[1], sample(fert,1))
+  initState <- paste(c(s1,s2,s3),collapse="/")
+  return(initState)
+}
+initPop <- data.frame(ID=1:N, birthDate=birthDates, 
+                      initState=sapply(birthDates, getRandInitState))
+initPop$birthDate <- getInDateFormat(initPop$birthDate)
+
+range(initPop$birthDate)
+
+head(initPop)
+```
+
+If using immigration, migrants are an option that can be added (but do not have to be).
+In this case we allow migration and again create a fictional population.
+
+```{r Migrant Pop}
+M = 200 #adjust here too                                                         
+immigrDates <- runif(M, min=getInDays(20140101), max=getInDays(20641231)) 
+immigrAges <- runif(M, min=15*365.25, max=70*365.25)
+immigrBirthDates <- immigrDates - immigrAges
+IDmig <- max(as.numeric(initPop[,"ID"]))+(1:M)
+immigrPop <- data.frame(ID = IDmig, immigrDate = immigrDates, birthDate=immigrBirthDates, 
+                        immigrInitState=sapply(immigrBirthDates, getRandInitState))  
+immigrPop$birthDate <- getInDateFormat(immigrPop$birthDate)
+immigrPop$immigrDate <- getInDateFormat(immigrPop$immigrDate)
+
+range(immigrPop$immigrDate)
+range(immigrPop$birthDate)
+```
+
+We also have to define the initial states a newborn can take, as well as provide occurrence probabilities for the possible states. Here roughly 50/50 split between male/female.
+
+```{r}
+varInitStates <- rbind(c("m","PH","0"),c("f","PH", "0")) 
+initStatesProb <- c(0.515,0.485) 
+```
+
+Next, we define the necessary transition rates. 
+
+These are all very simple (unreasonable) rates for illustration purposes.
+
+```{r Definition of Rates, fig.dim = c(7, 4)}
+#### Definition of Rates ####
+
+#living arrangement transition rates
+# A. Moving out from parental home
+moveOut <- function(age, calTime){
+  return(ifelse(age>16,pexp((age)/mean(age), rate=0.5),0))
+}
+
+# B. Moving back to parental home
+movePH <- function(age, calTime){
+  rate <- 1/age
+  return(rate)
+}
+
+# C. Starting partnership with living together
+startPA <- function(age, calTime){
+  rate <- dnorm(age, mean=35, sd=12)
+  rate[age<=18] <- 0
+  return(rate)
+}
+
+plot(0:100, startPA(0:100), "l", xlab="Age", ylab="Rate", 
+     main="Starting a Partnership (-> PA), only Females")
+
+# D. Separation of partnership with living together and moving into a single home
+stopPA_A <- function(age, calTime){
+  rate <- dnorm(age, mean=50, sd=10)
+  return(rate)
+}
+
+plot(0:100, stopPA_A(0:100), "l", xlab="Age", ylab="Rate", 
+     main="Ending a Couple Relationship (-> A), only Females")
+
+# E. Separation of partnership with living together and moving back to parents
+stopPA_PH <- function(age, calTime){
+  rate <- dnorm(age, mean=30, sd=10) /10
+  return(rate)
+}
+
+plot(0:100, stopPA_PH(0:100), "l", xlab="Age", ylab="Rate", 
+     main="Ending a Couple Relationship (-> PH), only Females")
+
+#Fertility Rates 1 bis 2nd parity
+
+# Fertility rates: first parity
+fert1Rates <- function(age, calTime){
+  b <- ifelse(calTime<=2020, 5.5, 5.1)
+  c <- ifelse(calTime<=2020, 28, 29)
+  rate <-  (b/c)*(c/age)^(3/2)*exp(-b^2*(c/age+age/c-2))
+  rate[age<=15 | age>=45] <- 0
+  return(rate)
+}
+# Fertility rates: second and higher order parity
+fert2Rates <- function(age, calTime, duration){
+  b <- ifelse(calTime<=2020, 6.0, 5.7)
+  c <- ifelse(calTime<=2020, 32, 33)
+  rate <-  (b/c)*(c/age)^(3/2)*exp(-b^2*(c/age+age/c-2))
+  rate[age<=15 | age>=45 | duration<0.75] <- 0
+  return(rate)
+}
+
+
+#mortality rates
+# F. Mortality rates (Gompertz model)
+mortRates <- function(age, calTime){
+  a <- .00003
+  b <- ifelse(calTime<=2020, 0.1, 0.097)
+  rate <- a*exp(b*age)
+  return(rate)
+}
+
+# Emigration rates
+emigrRates <- function(age, calTime){
+  rate <- ifelse(age<=18,0,0.0025)
+  return(rate)
+}
+```
+
+As linking partners currently includes matching by age, we include an age difference distribution to tell the function which age ranges it should consider.
+We do this here, so it can be adjusted as needed by the user.
+
+```{r}
+ageDiffDistr <- function(ageDiff) { 
+  # Matching probability depends on age difference between potential partners
+  #with age difference defined as ageMale-ageFem
+  return(dnorm(ageDiff, sd=3))
+}
+
+agesMates <- expand.grid(seq(from=-20, to=20, length=200),seq(from=-20, to=20,length=200))
+ageDiff <- agesMates[,1]-agesMates[,2]
+```
+
+Now we combine the values of state variables, indicating possible transitions, and the names of the rate functions into the transition matrix needed by the miclink function. Since currently the miclink assumes a female dominant model, we have to specify that certain transitions only happen/ are triggered by the female individuals (i. e. fertility).
+
+```{r Build transition matrix }
+#### Build transition matrix ####
+
+fertTrMatrix <- cbind(c("f/0->f/1","f/1->f/2","f/2->f/3+","f/3+->f/3+"),
+                      c("fert1Rates", "fert2Rates", "fert2Rates","fert2Rates"))
+
+partTrMatrix <- cbind(c("PH->A", "f/PH->f/PA", "f/A->f/PA", "f/PA->f/PH", 
+                        "f/PA->f/A", "A->PH"),
+                      c("moveOut", "startPA", "startPA","stopPA_PH",
+                        "stopPA_A", "movePH")) 
+
+allTransitions <- rbind(fertTrMatrix, partTrMatrix)
+
+absTransitions <- cbind(c("f/dead", "m/dead", "rest"),
+                        c("mortRates", "mortRates", "emigrRates"))
+
+transitionMatrix <- buildTransitionMatrix(allTransitions=allTransitions,
+                                          absTransitions=absTransitions,
+                                          stateSpace=stateSpace)
+
+head(transitionMatrix, n = c(7, 7) )
+```
+
+Lastly, we specify which transitions affect linkages between individuals.
+In this example this means, we define which transitions result in a partnership, a dissolution of a partnership or widowhood.
+We also have to tell the function which transitions cause a newborn.
+This has to be done by the user to guarantee flexibility of the package.
+As there are two separation transitions specified for women; moving into a single flat or moving back to the parents (`stopPA_A` and `stopPA_PH`), these have to be supplied for the male partner as well. Currently, we do this by simply supplying a probability with which these will occur for the man (`probSepTr`). This will work differently in a future version.
+
+```{r additional specs}
+partTr <- c("PH->PA", "A->PA")
+sepTr <- c("PA->A", "PA->PH")
+absPartTr <- c("dead -> A")
+fertTr <- fertTrMatrix[,1] #same as above,specify which events lead to newborns 
+#could also be written as: fertTr <- c("0->1", "1->2", "2->3+", "3+->3+")
+
+probSepTr <- c(0.8, 0.2)
+```
+
+Run the simulation:
+
+```{r run simulation, results= 'hide'}
+
+poplink <- micSimLink(initPop=initPop, immigrPop=immigrPop,
+                      transitionMatrix=transitionMatrix, absStates=absStates,
+                      varInitStates=varInitStates, initStatesProb=initStatesProb,
+                      maxAge=maxAge, simHorizon=simHorizon,
+                      fertTr=fertTr, partTr=partTr, rule=1, ageDiffDistr = ageDiffDistr,
+                      sepTr=sepTr, probSepTr = probSepTr,
+                      absPartTr=absPartTr)
+
+```
+```{r results}
+head(poplink, 10)
+```
+
