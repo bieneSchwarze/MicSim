@@ -55,8 +55,7 @@ Loading in data and making sure that everything is named correctly.
 When using `MicSim` the `initpop` **has** to be named exactly like you can see below, including the capitalization.
 
 ```{r loading initial population}
-#data(initpop_epc_example)
-load("EPC_data/initpop_epc_example.rda")
+initpop_epc_example <- data(initpop_epc_example)
 
 initpop <- initpop_epc_example %>% 
   rename(ID = id, birthDate = birthdate, initState = initState) %>% 
@@ -81,8 +80,7 @@ Importantly, a transition rate always has to be given for at least the whole age
 Calendar time, `calTime`, has to be given as an argument, but doesn't necessarily need to be reflected in the function (in most cases you probably want it to be).
 
 ```{r transition rates}
-#data(epc_mortality)
-epc_mortality <- load("EPC_data/epc_mortality.rda")
+epc_mortality <- data(epc_mortality)
 
 unique(mort_es$age)
 
@@ -127,8 +125,7 @@ We do the same thing we did for fertility also for mortality:
 - Defining transition rate functions
 
 ```{r loading fertility data}
-#data(epc_fertility)
-epc_fertility <- load("EPC_data/epc_fertility.rda")
+epc_fertility <- data(epc_fertility)
 
 # Filter fertility data
 fert_parity <- fert_parity %>%
@@ -198,8 +195,7 @@ And finally a homeownership rate. This one is the only one that comes from data 
 Again, we follow a similar process, except that we already have the correct matrix format.
 
 ```{r create homeownership function}
-#data(epc_ho_matrix)
-epc_ho_matrix <- load("EPC_data/epc_ho_matrix.rda")
+epc_ho_matrix <- data(epc_ho_matrix)
 
 ownhome <- function(age, calTime) {
   age_int <- as.integer(age)

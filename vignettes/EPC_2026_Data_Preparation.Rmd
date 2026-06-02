@@ -49,16 +49,15 @@ All cleaned data are available in the package, but the cleaning can be found her
 # ============================================================================
 
 # Load population data (by age and sex)
-df_pjan_raw <- read_csv(
-  "EPC_external_data/demo_pjan__custom_21562150_linear_2_0.csv",
+df_pjan_raw <- read_csv("../extdata/EPC_2026/demo_pjan__custom_21562150_linear_2_0.csv",
   col_types = cols(.default = col_character())
-)
+  )
 
 # Load housing data (tenure status by household composition)
 df_housing_raw <- read_csv(
-  "EPC_external_data/ilc_lvho02__custom_21562534_linear_2_0.csv",
+  "../extdata/EPC_2026/ilc_lvho02__custom_21562534_linear_2_0.csv",
   col_types = cols(.default = col_character())
-)
+  )
 
 # ============================================================================
 # Preparation of Raw Data
@@ -110,10 +109,8 @@ If the first step is done, load in cleaned data (also available in the package):
 invisible(gc())
 rm(list = ls())
 
-#data(pjan_clean)
-pjan_clean <- load("EPC_data/pjan_clean.rda")
-#data(ilc_lvho02_sp_cl)
-ilc_lvho02_sp_cl <- load("EPC_data/ilc_lvho02_sp_cl.rda")
+pjan_clean <- data(pjan_clean)
+ilc_lvho02_sp_cl <- data(ilc_lvho02_sp_cl)
 
 set.seed(321342)
 ```
@@ -172,7 +169,7 @@ ownership <- housing_es %>%
 Now we need to find fertility. Importantly, we need to know the order of children, since that affects transition rates. Since Eurostat doesn't have data on childless women, we use data from the Human fertility database instead (https://www.humanfertility.org/Country/Country?cntr=ESP)
 
 ```{r load fertility data}
-exp_0 <- read.table("EPC_external_data/ex_year_age_parity", 
+exp_0 <- read.table("../extdata/EPC_2026/ex_year_age_parity", 
          skip = 4,                    
          col.names = c("year", "age", "E0x", "E1x", "E2x", "E3x","E4x"),
          fill = TRUE,
@@ -428,7 +425,7 @@ We do this for fertility by getting data from the human fertility database (http
 calculated parity probabilities.
 
 ```{r load data}
-fert_es <- read.table("EPC_external_data/es_asfr", 
+fert_es <- read.table("../extdata/EPC_2026/es_asfr", 
          skip = 4,                    
          col.names = c("year", "age", "asfr"),
          fill = TRUE,
@@ -502,18 +499,18 @@ plot_dat <- fert_parity %>%
   mutate(
     parity = recode(
       parity,
-      "asfr_0"     = "0 → 1",
-      "asfr_1"     = "1 → 2",
-      "asfr_2"     = "2 → 3",
-      "asfr_3"     = "3 → 4",
-      "asfr_4plus" = "4+ → 4+"
+      "asfr_0"     = "0 ??? 1",
+      "asfr_1"     = "1 ??? 2",
+      "asfr_2"     = "2 ??? 3",
+      "asfr_3"     = "3 ??? 4",
+      "asfr_4plus" = "4+ ??? 4+"
     )
   )
 
 ggplot(plot_dat,
        aes(x = age, y = rate, group = year, colour = factor(year))) + 
   geom_line(linewidth = 0.5) +
-  facet_wrap(~ fct_relevel(parity, "0 → 1", "1 → 2", "2 → 3", "3 → 4", "4+ → 4+"), 
+  facet_wrap(~ fct_relevel(parity, "0 ??? 1", "1 ??? 2", "2 ??? 3", "3 ??? 4", "4+ ??? 4+"), 
              ncol = 1, scales = "free_y") +
   scale_x_continuous(breaks = seq(15, 49, 5)) +
   scale_color_viridis_d(name = "Year") +
@@ -527,7 +524,7 @@ ggplot(plot_dat,
 And mortality from the mortality database (https://mortality.org/Country/Country?cntr=ESP):
 
 ```{r mortality}
-mort_es <- read.table("EPC_external_data/es_m1x1", 
+mort_es <- read.table("../extdata/EPC_2026/es_m1x1", 
                  skip = 3,                    
                  col.names = c("year", "age", "female", "male", "total"),
                  fill = TRUE,
