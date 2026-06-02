@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-#reminder for install from github
+library(MicSim)
 library(tidyverse)
 ```
 
@@ -239,7 +239,7 @@ fertTr <- fertTrMatrix[,1]
 print(fertTr)
 ```
 
-```{r states variables}
+```{r childhood states}
 varInitStates <- rbind(c("m","r", "0"),c("f", "r", "0"))
 initStatesProb <- c(0.515,0.485)
 ```
@@ -264,7 +264,8 @@ Now we run the microsimulation, but again, we reduce the amount of individuals i
 ```{r simulation}
 set.seed(321342)
 #It takes about 2 minutes to complete the simulation!
-poplink <- micSimLink(initPop=initpop[1:5000,],
+#You can increase the population up to 5000 for better plotting
+poplink <- micSimLink(initPop=initpop[1:1000,],
                       transitionMatrix=transitionMatrix,
                       absStates=absStates,
                       varInitStates=varInitStates,
@@ -283,7 +284,7 @@ head(pop_long, 3)
 
 ```
 
-```{r plot}
+```{r plot homeownership}
 pop_plot_h <- pop_long %>%  
   mutate(
     agestart = getAgeInDays(Tstart, birthDate) / 365.25,

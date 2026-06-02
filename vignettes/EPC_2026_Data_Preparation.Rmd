@@ -309,7 +309,7 @@ synth_par <- synth %>%
 
 Plot structure:
 
-```{r plots}
+```{r plots of Age Structure}
 # Females by age bin
 females <- synth_par %>%
   mutate(age_bin = cut(age, 
@@ -349,7 +349,7 @@ ggplot(df_pyr, aes(x = population, y = age_bin, fill = sex)) +
 
 We can also plot this:
 
-```{r plots}
+```{r plot population pyramid}
 # Females by age and parity
 females_parity <- synth_par %>%
   group_by(age, parity) %>%
@@ -484,7 +484,7 @@ head(fert_parity)
 
 We can quickly plot this rate:
 
-```{r plot}
+```{r plot fertility rate}
 plot_dat <- fert_parity %>%
   mutate(
     age = as.numeric(age),
@@ -542,7 +542,7 @@ head(mort_es)
 
 Plot:
 
-```{r plots}
+```{r plot mortality rate}
 # Convert character columns to numeric
 mort_plot <- mort_es %>%
   mutate(
