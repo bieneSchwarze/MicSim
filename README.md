@@ -43,6 +43,12 @@ library(MicSim)
 browseVignettes(package = "MicSim")
 ```
 
+4. Open files:
+```
+file.edit(system.file("doc", "EPC_2026_Microsimulation.Rmd", package = "MicSim"))
+file.edit(system.file("doc", "EPC_2026_Linked_Lives.Rmd", package = "MicSim"))
+```
+
 ------------------------------------------------------------------------
 
 #### Advanced Example: Fertility, Mortality, and Maternal Attribute Inheritance
