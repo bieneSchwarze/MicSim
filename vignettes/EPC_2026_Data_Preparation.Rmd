@@ -49,23 +49,23 @@ All cleaned data are available in the package, but the cleaning can be found her
 # ============================================================================
 
 # Load population data (by age and sex)
-df_pjan_raw <- read_csv("../extdata/EPC_2026/demo_pjan__custom_21562150_linear_2_0.csv",
-  col_types = cols(.default = col_character())
-  )
+path <- system.file("extdata", "EPC_2026", "demo_pjan__custom_21562150_linear_2_0.csv", package = "MicSim")
+df_pjan_raw <- read_csv(path,col_types = cols(.default = col_character()))
+#save(df_pjan_raw, file = "df_pjan_raw.rda")
 
 # Load housing data (tenure status by household composition)
-df_housing_raw <- read_csv("../extdata/EPC_2026/ilc_lvho02__custom_21562534_linear_2_0.csv",
-  col_types = cols(.default = col_character())
-  )
-
+path <- system.file("extdata", "EPC_2026", "ilc_lvho02__custom_21562534_linear_2_0.csv", package = "MicSim")
+df_housing_raw <- read_csv(path,col_types = cols(.default = col_character()))
+#save(df_housing_raw, file = "df_housing_raw.rda")
 # ============================================================================
 # Preparation of Raw Data
 # ============================================================================
-
+data(df_pjan_raw)
+data(df_housing_raw)
 unique(df_pjan_raw$age)
 unique(df_pjan_raw$sex)
 head(df_pjan_raw)
-
+data(pop_structure)
 # For now keep only Spain and clean (most complete data )
 pop_structure <- df_pjan_raw %>%
   filter(
@@ -81,7 +81,7 @@ pop_structure <- df_pjan_raw %>%
   filter(!is.na(age), !is.na(sex), !is.na(population)) %>%
   select(year, age, sex, population)
 
-#save(pop_structure, file = "pjan_clean.Rda")
+#save(pop_structure, file = "pop_structure.rda")
 
 # Extract Spain housing data: home ownership rates
 
