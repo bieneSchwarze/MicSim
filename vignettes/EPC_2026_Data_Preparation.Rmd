@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 
 Load the packages that we will be using for this process:
 
-```{r setup}
+```{r setup, eval=FALSE, echo=FALSE}
 #install_from github here
 library(dplyr)
 library(readr)
@@ -69,19 +69,19 @@ head(df_pjan_raw)
 data(pop_structure)
 
 # For now keep only Spain and clean (most complete data )
-# pop_structure <- df_pjan_raw %>%
-#   filter(
-#     `Geopolitical entity (reporting)`  == "Spain",
-#     !is.na(`OBS_VALUE`),
-#     age != "TOTAL",
-#     age != "UNK"
-#   ) %>%
-#   mutate(
-#     population = as.numeric(`OBS_VALUE`),
-#     year = as.integer(`TIME_PERIOD`)
-#   ) %>%
-#   filter(!is.na(age), !is.na(sex), !is.na(population)) %>%
-#   select(year, age, sex, population)
+pop_structure <- df_pjan_raw %>%
+  filter(
+    `Geopolitical entity (reporting)`  == "Spain",
+    !is.na(`OBS_VALUE`),
+    age != "TOTAL",
+    age != "UNK"
+  ) %>%
+  mutate(
+    population = as.numeric(`OBS_VALUE`),
+    year = as.integer(`TIME_PERIOD`)
+  ) %>%
+  filter(!is.na(age), !is.na(sex), !is.na(population)) %>%
+  select(year, age, sex, population)
 
 #save(pop_structure, file = "pop_structure.rda")
 
@@ -106,7 +106,7 @@ housing_es <- df_housing_raw %>%
 
 If the first step is done, load in cleaned data (also available in the package):
 
-```{r load .rda files}
+```{r load .rda files, eval=FALSE, echo=FALSE}
 invisible(gc())
 rm(list = ls())
 
@@ -117,22 +117,21 @@ set.seed(321342)
 ```
 
 
-```{r clean age}
+```{r clean age, eval=FALSE, echo=FALSE}
 #### Clean Age ####
-data(pop_structure)
-# unique(pop_structure$age)
+unique(pop_structure$age)
 
-# pop_es <- pop_structure %>% 
-#   filter(!age %in% c("Y_LT1", "Y_OPEN")) %>% 
-#   mutate(age = as.numeric(str_remove(age, "^Y")))
-# 
-# save(pop_es, file = "pop_es.rda")
+pop_es <- pop_structure %>%
+  filter(!age %in% c("Y_LT1", "Y_OPEN")) %>%
+  mutate(age = as.numeric(str_remove(age, "^Y")))
+
+save(pop_es, file = "pop_es.rda")
 data(pop_es)
 ```
 
 First we want averages of the population per age and sex.
 
-```{r filter data}
+```{r filter data, eval=FALSE, echo=FALSE}
 # Age distribution
 pop_avg <- pop_es %>%
   filter(sex %in% c("F", "M")) %>%
@@ -158,7 +157,7 @@ pop_weights <- pop_avg %>%
 
 Next we prep the homeownership data. Since housing data often isn't available before 2000 (such as this one, too) we use the crude 2007 ownership for the initial population.
 
-```{r filter ownership}
+```{r filter ownership, eval=FALSE, echo=FALSE}
 print(housing_es)
 
 # Get ownership rate
@@ -172,7 +171,7 @@ ownership <- housing_es %>%
 
 Now we need to find fertility. Importantly, we need to know the order of children, since that affects transition rates. Since Eurostat doesn't have data on childless women, we use data from the Human fertility database instead (https://www.humanfertility.org/Country/Country?cntr=ESP)
 
-```{r load fertility data}
+```{r load fertility data, eval=FALSE, echo=FALSE}
 path <- system.file("extdata", "EPC_2026", "ex_year_age_parity", package = "MicSim")
 exp_0 <- read.table(path, 
          skip = 4,                    
@@ -214,7 +213,7 @@ Now we have proportions of women for each parity starting in 1991.
 
 With this, we can start building a synthetic population of 5000 individuals.
 
-```{r building population}
+```{r building population, eval=FALSE, echo=FALSE}
 N <- 5000
 
 sample_indices <- sample(
@@ -238,7 +237,7 @@ print(synth %>% count(sex) %>% mutate(pct = round(n/sum(n)*100, 1)))
 
 Assign our initial population random birthdays:
 
-```{r create initial population random birthdays}
+```{r create initial population random birthdays, eval=FALSE, echo=FALSE}
 #Assume people can get born over the range we have data for
 #We create random birthdays but otherwise keep to the age distribution
 
@@ -269,7 +268,7 @@ synth <- synth %>%
 ```
 And for the women a fertility parity corresponding to their age in the year 2000 again. 
 
-```{r fertility parity}
+```{r fertility parity, eval=FALSE, echo=FALSE}
 parity_2000 <- fert_0 %>% 
   filter(year == 2000) %>% 
   pivot_wider(names_from = parity, values_from = proportion) %>%
@@ -311,7 +310,7 @@ synth_par <- synth %>%
 
 Plot structure:
 
-```{r plots of Age Structure}
+```{r plots of Age Structure, eval=FALSE, echo=FALSE}
 # Females by age bin
 females <- synth_par %>%
   mutate(age_bin = cut(age, 
@@ -351,7 +350,7 @@ ggplot(df_pyr, aes(x = population, y = age_bin, fill = sex)) +
 
 We can also plot this:
 
-```{r plot population pyramid}
+```{r plot population pyramid, eval=FALSE, echo=FALSE}
 # Females by age and parity
 females_parity <- synth_par %>%
   group_by(age, parity) %>%
@@ -396,7 +395,7 @@ Lastly, individuals in the population can be either homeowner or not.
 For the initial population we don't account for anything more complicated other
 than restricting individuals younger than 20 from becoming owners.
 
-```{r homeowner building}
+```{r homeowner building, eval=FALSE, echo=FALSE}
 synth <- synth %>%
   mutate(
     homeowner = if_else(age < 20, "r", 
@@ -408,7 +407,7 @@ So, this initial population includes age, fertility and whether they own a home 
 
 Because MicSim takes special input we are going to reformat this initPop into the input needed by MicSim:
 
-```{r building initPop}
+```{r building initPop, eval=FALSE, echo=FALSE}
 synth_full <- synth %>%
   left_join(synth_par %>% select(id, parity), by = "id") %>%
   mutate(parity = replace_na(parity, "0")) #men get assigned 0 as a parity
@@ -429,7 +428,7 @@ For the transitions rates, we also need data. Here we prep this:
 We do this for fertility by getting data from the human fertility database (https://www.humanfertility.org/Country/Country?cntr=ESP#age) and add our
 calculated parity probabilities.
 
-```{r load data}
+```{r load data, eval=FALSE, echo=FALSE}
 path <- system.file("extdata", "EPC_2026", "es_asfr", package = "MicSim")
 fert_es <- read.table(path, 
          skip = 4,                    
@@ -445,7 +444,7 @@ fert_es$age[fert_es$age %in% "55+"] <- 55
 Now, since fertility transitions also depend on which number of child it is, we
 take parity into account again:
 
-```{r parity fertility}
+```{r parity fertility, eval=FALSE, echo=FALSE}
 # Parity proportions by age and year (from HFD, 1991-2023)
 shares <- fert_0 %>%
   select(year, age, parity, proportion) %>%
@@ -487,7 +486,7 @@ head(fert_parity)
 
 We can quickly plot this rate:
 
-```{r plot fertility rate}
+```{r plot fertility rate, eval=FALSE, echo=FALSE}
 plot_dat <- fert_parity %>%
   mutate(
     age = as.numeric(age),
@@ -529,7 +528,7 @@ ggplot(plot_dat,
 
 And mortality from the mortality database (https://mortality.org/Country/Country?cntr=ESP):
 
-```{r mortality}
+```{r mortality, eval=FALSE, echo=FALSE}
 path <- system.file("extdata", "EPC_2026", "es_m1x1", package = "MicSim")
 mort_es <- read.table(path, 
                  skip = 3,                    
@@ -546,7 +545,7 @@ head(mort_es)
 
 Plot:
 
-```{r plot mortality rate}
+```{r plot mortality rate, eval=FALSE, echo=FALSE}
 # Convert character columns to numeric
 mort_plot <- mort_es %>%
   mutate(
