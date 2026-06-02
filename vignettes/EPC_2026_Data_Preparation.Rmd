@@ -108,8 +108,8 @@ If the first step is done, load in cleaned data (also available in the package):
 invisible(gc())
 rm(list = ls())
 
-pjan_clean <- data(pjan_clean)
-ilc_lvho02_sp_cl <- data(ilc_lvho02_sp_cl)
+data(pjan_clean)
+data(ilc_lvho02_sp_cl)
 
 set.seed(321342)
 ```

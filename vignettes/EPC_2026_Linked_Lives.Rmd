@@ -44,7 +44,7 @@ absStates <- "dead"
 ## Loading initial population
 
 ```{r initial population}
-initpop_epc_example <- data(initpop_epc_example)
+data(initpop_epc_example)
 
 initpop <- initpop_epc_example %>% 
   rename(ID = id, birthDate = birthdate, initState = initState) %>% 
@@ -54,7 +54,7 @@ initpop <- initpop_epc_example %>%
 ## Defining Transition Rates
 
 ```{r load mortality data}
-epc_mortality <- data(epc_mortality)
+data(epc_mortality)
 
 unique(mort_es$age)
 
@@ -97,7 +97,7 @@ mortRates_f <- function(age, calTime) {
 Fertility:
 
 ```{r load fertility data}
-epc_fertility <- data(epc_fertility)
+data(epc_fertility)
 
 # Filter fertility data
 fert_parity <- fert_parity %>%
@@ -166,7 +166,7 @@ fertRates_3_4 <- function(age, calTime) {
 For the homeownership rate in a scenario with intergenerational transmission, the function requires data for the years when the mother would be transitioning. Since these data are not present in our example homeownership matrix, we backfilled using the 2005 data that exists.
 
 ```{r homeownership rate}
-epc_ho_matrix <- data(epc_ho_matrix)
+data(epc_ho_matrix)
 
 ownhome <- function(age, calTime) {
   age_int <- as.integer(age)
