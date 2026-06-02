@@ -2,7 +2,7 @@
 title: "EPC_2026_Data_Preparation"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Data_Preparation}
+  %\VignetteIndexEntry{EPC_2026_Data_Preparation}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
