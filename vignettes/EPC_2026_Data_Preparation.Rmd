@@ -64,7 +64,6 @@ All cleaned data are available in the package, but the cleaning can be found her
 unique(df_pjan_raw$age)
 unique(df_pjan_raw$sex)
 head(df_pjan_raw)
-# data(pop_structure)
 
 # For now keep only Spain and clean (most complete data )
 pop_structure <- df_pjan_raw %>%
@@ -80,8 +79,6 @@ pop_structure <- df_pjan_raw %>%
   ) %>%
   filter(!is.na(age), !is.na(sex), !is.na(population)) %>%
   select(year, age, sex, population)
-
-#save(pop_structure, file = "pop_structure.rda")
 
 # Extract Spain housing data: home ownership rates
 
@@ -123,8 +120,6 @@ pop_es <- pop_structure %>%
   filter(!age %in% c("Y_LT1", "Y_OPEN")) %>%
   mutate(age = as.numeric(str_remove(age, "^Y")))
 
-# save(pop_es, file = "pop_es.rda")
-# data(pop_es)
 ```
 
 First we want averages of the population per age and sex.

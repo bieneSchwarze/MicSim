@@ -219,19 +219,19 @@
 #' }
 "initpop_epc_example"
 
-#' Cleaned Population Structure (Spain)
-#'
-#' Population counts by year, age and sex, cleaned and harmonized for use
-#' in demographic simulations.
-#'
-#' @format A tibble with 15,942 rows and 4 variables:
-#' \describe{
-#'   \item{year}{Calendar year.}
-#'   \item{age}{Age category (Eurostat Y-coding).}
-#'   \item{sex}{Sex code ("F", "M").}
-#'   \item{population}{Population count.}
-#' }
-"pop_structure"
+#' #' Cleaned Population Structure (Spain)
+#' #'
+#' #' Population counts by year, age and sex, cleaned and harmonized for use
+#' #' in demographic simulations.
+#' #'
+#' #' @format A tibble with 15,942 rows and 4 variables:
+#' #' \describe{
+#' #'   \item{year}{Calendar year.}
+#' #'   \item{age}{Age category (Eurostat Y-coding).}
+#' #'   \item{sex}{Sex code ("F", "M").}
+#' #'   \item{population}{Population count.}
+#' #' }
+#' "pop_structure"
 
 #' Housing Tenure Data (Spain)
 #'
