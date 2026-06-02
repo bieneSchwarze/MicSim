@@ -49,12 +49,12 @@ All cleaned data are available in the package, but the cleaning can be found her
 # ============================================================================
 
 # Load population data (by age and sex)
-df_pjan_raw <- read_csv("../extdata/EPC_2026/demo_pjan__custom_21562150_linear_2_0.csv",
+df_pjan_raw <- read_csv("../inst/extdata/EPC_2026/demo_pjan__custom_21562150_linear_2_0.csv",
   col_types = cols(.default = col_character())
   )
 
 # Load housing data (tenure status by household composition)
-df_housing_raw <- read_csv("../extdata/EPC_2026/ilc_lvho02__custom_21562534_linear_2_0.csv",
+df_housing_raw <- read_csv("../inst/extdata/EPC_2026/ilc_lvho02__custom_21562534_linear_2_0.csv",
   col_types = cols(.default = col_character())
   )
 
@@ -168,7 +168,7 @@ ownership <- housing_es %>%
 Now we need to find fertility. Importantly, we need to know the order of children, since that affects transition rates. Since Eurostat doesn't have data on childless women, we use data from the Human fertility database instead (https://www.humanfertility.org/Country/Country?cntr=ESP)
 
 ```{r load fertility data}
-exp_0 <- read.table("../extdata/EPC_2026/ex_year_age_parity", 
+exp_0 <- read.table("../inst/extdata/EPC_2026/ex_year_age_parity", 
          skip = 4,                    
          col.names = c("year", "age", "E0x", "E1x", "E2x", "E3x","E4x"),
          fill = TRUE,
@@ -424,7 +424,7 @@ We do this for fertility by getting data from the human fertility database (http
 calculated parity probabilities.
 
 ```{r load data}
-fert_es <- read.table("../extdata/EPC_2026/es_asfr", 
+fert_es <- read.table("../inst/extdata/EPC_2026/es_asfr", 
          skip = 4,                    
          col.names = c("year", "age", "asfr"),
          fill = TRUE,
@@ -523,7 +523,7 @@ ggplot(plot_dat,
 And mortality from the mortality database (https://mortality.org/Country/Country?cntr=ESP):
 
 ```{r mortality}
-mort_es <- read.table("../extdata/EPC_2026/es_m1x1", 
+mort_es <- read.table("../inst/extdata/EPC_2026/es_m1x1", 
                  skip = 3,                    
                  col.names = c("year", "age", "female", "male", "total"),
                  fill = TRUE,
