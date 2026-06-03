@@ -33,7 +33,7 @@ library(remotes)
 2.  Install the `micsimlink-v1.0` version of MicSim:
 
 ```
-remotes::install_github("bieneSchwarze/MicSim@micsimlink-v1.0", build_vignettes=TRUE)
+remotes::install_github("bieneSchwarze/MicSim@micsimlink-v1.0", dependencies = TRUE, build_vignettes = TRUE)
 ```
 
 3.  Load the package and check the Vignettes: 
@@ -41,6 +41,7 @@ remotes::install_github("bieneSchwarze/MicSim@micsimlink-v1.0", build_vignettes=
 ```
 library(MicSim)
 browseVignettes(package = "MicSim")
+install.packages ("tidyverse")
 ```
 
 4. Open files:
