@@ -18,37 +18,7 @@ The MicSim package was developed following the methodological concepts introduce
 
 The vignettes included in this package provide a more detailed explanation of how **MicSim** can be applied in research settings, offering step-by-step examples and methodological guidance.
 
-### Installing the micsimlink-v1.0 Version of MicSim for **EPC 2026**
 
-A dedicated tagged release of the MicSimLink extension is available under the tag `micsimlink-v1.0` in the GitHub repository. It is possible to install this specific version directly from GitHub using the [remotes package](https://remotes.r-lib.org/).
-
-#### Step-by-step installation
-1.  Make sure the remotes package is installed: 
-
-```
-install.packages("remotes")
-library(remotes)
-```
-
-2.  Install the `micsimlink-v1.0` version of MicSim:
-
-```
-remotes::install_github("bieneSchwarze/MicSim@micsimlink-v1.0", dependencies = TRUE, build_vignettes = TRUE)
-```
-
-3.  Load the package and check the Vignettes: 
-
-```
-library(MicSim)
-browseVignettes(package = "MicSim")
-install.packages ("tidyverse")
-```
-
-4. Open files:
-```
-file.edit(system.file("doc", "EPC_2026_Microsimulation.Rmd", package = "MicSim"))
-file.edit(system.file("doc", "EPC_2026_Linked_Lives.Rmd", package = "MicSim"))
-```
 
 ------------------------------------------------------------------------
 
