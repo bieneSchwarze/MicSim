@@ -131,6 +131,4 @@ pop <- micSim(
   simHorizon = simHorizon,
   fertTr = fertTr
 )
-
 ```
-
