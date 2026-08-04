@@ -914,7 +914,7 @@ micSim <- function(initPop, immigrPop=NULL, transitionMatrix, absStates=NULL, fi
       return(nE)
     }
     #duration argument = no, genarg argument = no
-    if(all(depMatrix[,3]) == 0 && all(depMatrix[,4] == 0)){
+    if(all(depMatrix[,3] == 0) && all(depMatrix[,4] == 0)){
         # Compute for each possible destination state a waiting time.
         for(i in 1:length(possTr)){
           tr <- possTr[i]
