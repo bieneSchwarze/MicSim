@@ -6,27 +6,29 @@ MicSim is suitable for applications in demography, epidemiology, social sciences
 
 Microsimulation models represent individual life courses by simulating transitions between discrete states (e.g., employment, health status, marital status). MicSim implements these models in continuous time, allowing:
 
--   Arbitrary state spaces
--   Time-dependent transition rates
--   Individual-level heterogeneity
--   Event history generation
--   Simulation of large synthetic populations
+- Arbitrary state spaces  
+- Time-dependent transition rates  
+- Individual-level heterogeneity  
+- Event history generation  
+- Simulation of large synthetic populations  
 
-The MicSim package was developed following the methodological concepts introduced in Zinn's dissertation "Microsimulation of Life Histories: A Continuous-Time Approach" (University of Rostock, 2011). The dissertation outlines the statistical, demographic, and computational principles that form the core of MicSim's continuous-time microsimulation engine.
+The MicSim package was developed following the methodological concepts introduced in Zinn's dissertation "Microsimulation of Life Histories: A Continuous-Time Approach" (University of Rostock, 2011). The dissertation outlines the statistical, demographic, and computational principles that form the core of MicSim's continuous-time microsimulation engine.  
 
-[Zinn, S. (2011). Microsimulation of Life Histories: A Continuous-Time Approach. University of Rostock.](https://rosdok.uni-rostock.de/file/rosdok_derivate_0000004766/Dissertation_Zinn_2011.pdf)
+[Zinn, S. (2011). Microsimulation of Life Histories: A Continuous-Time Approach.  
+University of Rostock.](https://rosdok.uni-rostock.de/file/rosdok_derivate_0000004766/Dissertation_Zinn_2011.pdf)
 
 The vignettes included in this package provide a more detailed explanation of how **MicSim** can be applied in research settings, offering step-by-step examples and methodological guidance.
 
+---
 
+#### Advanced Example: Fertility, Mortality, and Maternal Attribute Inheritance  
+This illustrative example shows how to prepare the input needed by MicSim to simulate a population with:
+- Mortality (Gompertz model)  
+- Fertility (Hadwiger mixture model)  
+- Inheritance of nationality from the mother  
+- Multiple sub-states (sex x nationality x fertility status)  
 
-------------------------------------------------------------------------
-
-#### Advanced Example: Fertility, Mortality, and Maternal Attribute Inheritance
-
-This illustrative example shows how to prepare the input needed by MicSim to simulate a population with: - Mortality (Gompertz model) - Fertility (Hadwiger mixture model) - Inheritance of nationality from the mother - Multiple sub-states (sex x nationality x fertility status)
-
-```         
+```
 # Clean workspace
 rm(list = ls())
 

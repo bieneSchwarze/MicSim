@@ -63,30 +63,48 @@ builtStatesCodes <- function(transitionMatrix){
 #' Build dependency matrix
 #'
 #' @usage rate_cS(allTr)
-#' @description Helper function for MicSim. 
+#' @description Helper function to track arguments used by transition rate functions and if intergenerational transmission is used for the microsimulation.
 #' A function for building a matrix containing the arguments of the transition rate functions.
 #'
-#' @param allTr a matrix containing names of all transition rate functions.
+#' @param allTr A matrix containing names of all transition rate functions.
 #'
 #' @returns A dependency matrix
 #' @keywords internal
-#' @noRd
+#' @export
+#'
 #'
 rate_cS <- function(allTr){
+  #TODO:  Check if genMatrix exists in the global environment -> print error message otherwise
+  genMatrix_exists <- exists("genMatrix", envir = .GlobalEnv)
+  
   rates <-  unique(allTr)
-  form <- unique(unlist(lapply(rates, function(f) names(formals(f)))))
-  depMatrix <- matrix(0, nrow = length(rates), ncol = length(form))
+  
+  form <- c("age", "calTime", "duration", "genarg")
+  
+  depMatrix <- matrix(0, nrow = length(rates), ncol = 4)
+  
   colnames(depMatrix) <- form
   rownames(depMatrix) <- rates
+  
+  col_count <- rep(0, ncol(depMatrix))
+  
   for(i in 1:nrow(depMatrix)){
-    if(all(names(formals(rates[i])) %in% colnames(depMatrix))) {
-      args <- names(formals(rates[i]))
-      for(k in 1:length(args)) {
-        depMatrix[i, match(args[k], colnames(depMatrix))] <- 1
-      }
+    args <- names(formals(rates[i]))
+    for(k in 1:length(args)) {
+      col <- match(args[k], colnames(depMatrix))
+      col_count[col] <- col_count[col] + 1
+      depMatrix[i, col] <- col_count[col]
+    }
+    
+    if (genMatrix_exists && rates[i] %in% genMatrix[, 1]) {
+      col <- match("genarg", colnames(depMatrix))
+      col_count[col] <- col_count[col] + 1
+      depMatrix[i, col] <- col_count[col]
     }
   }
+  
   depMatrix <- as.matrix(depMatrix)
   return(depMatrix)
+  
 }
 

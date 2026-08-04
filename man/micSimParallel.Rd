@@ -4,59 +4,114 @@
 \alias{micSimParallel}
 \title{micSimParallel}
 \usage{
-micSimParallel(initPop=NULL, immigrPop=NULL, initPopList= c(),
-                     immigrPopList= c(), transitionMatrix, absStates=NULL,
-                     varInitStates=c(), initStatesProb=c(), fixInitStates = c(),
-                     maxAge=99, simHorizon, fertTr=c(), monthSchoolEnrol=c(),
-                     cores=1, seeds=1254)
+micSimParallel(
+  initPop = NULL,
+  immigrPop = NULL,
+  initPopList = c(),
+  immigrPopList = c(),
+  transitionMatrix,
+  absStates = NULL,
+  varInitStates = c(),
+  initStatesProb = c(),
+  fixInitStates = c(),
+  maxAge = 99,
+  simHorizon,
+  fertTr = c(),
+  monthSchoolEnrol = c(),
+  cores = 1,
+  seeds = 1254
+)
 }
 \arguments{
-\item{initPop}{Data frame comprising the starting population of the simulation.}
+\item{initPop}{A data frame describing the initial population at the start of
+the simulation. Must contain \code{ID}, \code{birthDate}, and
+\code{initState}. Used when no manual split is provided.}
 
-\item{immigrPop}{Data frame comprising information about the immigrants entering the population across simulation time.}
+\item{immigrPop}{Optional data frame describing immigrants entering the
+population during the simulation. Must contain \code{ID}, \code{immigrDate},
+\code{birthDate}, and \code{immigrInitState}. Used when no manual split is
+provided.}
 
-\item{initPopList}{A list of matrices, where each matrix represents a subset of initial population.}
+\item{initPopList}{A list of data frames, each containing a subset of the
+initial population to be simulated on a specific core. If supplied, the
+function uses this split directly and does not perform automatic
+partitioning. Each element must have the same structure as \code{initPop}.}
 
-\item{immigrPopList}{A list of matrices, where each matrix represents a subset of the immigrant population.}
+\item{immigrPopList}{A list of data frames, each containing a subset of the
+immigrant population assigned to a specific core. If supplied, the function
+uses this split directly. Each element must have the same structure as
+\code{immigrPop}.}
 
-\item{transitionMatrix}{A matrix indicating the transition pattern and the names of the functions determining the respective transition rates (with rates to be returned as vectors,
-i.e. for input age 0 to 10 eleven rate values have to be returned).}
+\item{transitionMatrix}{A matrix defining the transition pattern of the
+multi-state model. Row names represent origin states, column names represent
+destination states, and entries contain the names of functions returning
+age- and/or time-specific transition rates.}
 
-\item{absStates}{A vector indicating the absorbing states of the model.}
+\item{absStates}{A character vector of absorbing states. If not provided,
+absorbing states are inferred as states that appear as column names but not
+as row names in \code{transitionMatrix}.}
 
-\item{varInitStates}{(A vector comprising the) SubStates / attributes that are assigned to a newborn randomly according to the probabilities \code{initStatesProb}, i.e. that are not inherited from the mother.}
+\item{varInitStates}{A vector or matrix of substates/attributes that are
+assigned to newborns probabilistically according to \code{initStatesProb}.}
 
-\item{initStatesProb}{A vector comprising the probabilities corresponding to \code{varInitStates}.
-If \code{fixInitStates} are given (i.e. attributes from the mother are inherited), these probabilities have to sum to one conditioned on the inherited attributes,
-i.e. for each (set of) inherited attribute(s) separately. Otherwise, the sum of \code{initStatesProb} has to be one.}
+\item{initStatesProb}{A vector of probabilities corresponding to
+\code{varInitStates}. If inheritance is used via \code{fixInitStates},
+probabilities must sum to one conditional on the inherited attributes;
+otherwise they must sum to one overall.}
 
-\item{fixInitStates}{(Vector of) Indices of SubStates determining the attributes/subStates that a newborn will be taken over from the mother. If empty or not defined, no attributes will be inherited.}
+\item{fixInitStates}{Indices of substates/attributes that newborns inherit
+directly from their mother. If empty, no attributes are inherited.}
 
-\item{maxAge}{A scalar indicating the exact maximal age (i.e., sharp 100.00 years) which an individual can reach during simulation. \code{maxAge} has to be greater than zero.}
+\item{maxAge}{Maximum age (in years) an individual can reach during the
+simulation. Must be strictly positive.}
 
-\item{simHorizon}{A vector comprising the starting and ending date of the simulation. Both dates have to be given in the format 'yyyymmdd'. The starting date has to precede the ending date.}
+\item{simHorizon}{A length-two vector giving the start and end dates of the
+simulation in \code{"yyyymmdd"} format. The start date must precede the end
+date.}
 
-\item{fertTr}{A vector indicating all transitions triggering a child birth event during simulation, that is, the creation of a new individual.}
+\item{fertTr}{A character vector specifying transitions that trigger a birth
+event. Each element must be of the form \code{"stateA -> stateB"}.}
 
-\item{monthSchoolEnrol}{The month (as numeric value from 1 to 12) indicating the general enrollment month for elementary school, e.g., 9 for September.
-If transition to elementary school is not defined (see below under 'details') and no such month is given school enrollment to elementary school is not modeled / simulated.}
+\item{monthSchoolEnrol}{Numeric month (1–12) indicating the general school
+enrollment month for elementary school. If omitted and no school enrollment
+transition is defined, school enrollment is not simulated.}
 
-\item{cores}{Number of cores as the user specifies. Note: The number is restricted by the maximum number of cores a computer (or a computer cluster) has.}
+\item{cores}{Integer specifying the number of CPU cores to use. Must not
+exceed the number of available cores on the machine.}
 
-\item{seeds}{To ensure that the results are replicable and are therefore reasonable, the user should always assign a seed to each PRNG (pseudo random number generator) representation used.}
+\item{seeds}{A numeric seed or vector of seeds used to initialize the random
+number generators across cores, ensuring reproducibility of the parallel
+simulation.}
 }
 \value{
-A matrix representing the combined population after running the simulation in parallel.
-Each row corresponds to an individual, and columns represent different attributes or states of the individuals.
-The function ensures that unique IDs are assigned to newborns and that the final output is ordered correctly by these IDs.
-This matrix includes the results of the simulations for all subsets of the initial and immigrant populations processed across different cores.
+A data frame containing the merged simulated population from all cores,
+including all individuals, their transition histories, births, deaths,
+parental links, and any events generated during the simulation. The output
+structure matches that of \code{micSim()} but includes harmonized IDs and
+combined results from all parallel threads.
 }
 \description{
-Performs a continuous-time microsimulation run (sequentially, i.e., using only one CPU core).
+Performs a continuous-time microsimulation using multiple CPU cores. The
+function splits the initial and immigrant populations across cores (either
+automatically or according to user-provided lists), runs independent
+simulations in parallel, and merges the results. This enables substantial
+speed improvements for large populations.
 }
 \details{
-The \code{micSimParallel} function is designed to perform population simulations in parallel using multiple processing cores.
-This function is particularly useful for large-scale simulations where computational efficiency is crucial.
-The function takes an initial population and an immigrant population, both of which can be provided as single matrices or as lists of matrices for parallel processing.
-If the populations are provided as lists, each element of the list is processed by a different core, allowing for efficient distribution of the computational load.
+Parallel Continuous-Time Microsimulation
+
+Executes a continuous-time microsimulation in parallel by distributing the
+initial population and, if applicable, the immigrant population across
+multiple CPU cores. Each core runs an independent simulation using
+\code{micSim()}, and the resulting life histories are merged into a single
+output population. Newborn IDs are harmonized across cores to ensure global
+uniqueness.
+
+If \code{initPopList} and/or \code{immigrPopList} are provided, the function
+uses these lists directly to assign individuals to cores. Otherwise, the
+populations are automatically partitioned into approximately equal-sized
+subsets. Each core runs an independent call to \code{micSim()}, after which
+the resulting life histories are merged. Newborn IDs are reassigned to ensure
+global uniqueness across cores. Parallelization is implemented using the
+\code{snowfall} framework.
 }
