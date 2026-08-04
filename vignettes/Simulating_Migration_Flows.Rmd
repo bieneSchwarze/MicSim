@@ -343,13 +343,13 @@ This example uses three cores. Give as many seeds as you use cores. That way you
 
 cores <- 3
 seeds <- c(34,145,97)
-pop <- micSimParallel(initPop=initPop, immigrPop=immigrPop,
-                      transitionMatrix=transitionMatrix, absStates=absStates,
-                      varInitStates=varInitStates, initStatesProb=initStatesProb,
-                      fixInitStates=fixInitStates,
-                      maxAge=maxAge, simHorizon=simHorizon,fertTr=fertTr, 
-                      cores=cores, seeds=seeds)
-head(pop)
+# pop <- micSimParallel(initPop=initPop, immigrPop=immigrPop,
+#                       transitionMatrix=transitionMatrix, absStates=absStates,
+#                       varInitStates=varInitStates, initStatesProb=initStatesProb,
+#                       fixInitStates=fixInitStates,
+#                       maxAge=maxAge, simHorizon=simHorizon,fertTr=fertTr, 
+#                       cores=cores, seeds=seeds)
+# head(pop)
 ```
 
 
