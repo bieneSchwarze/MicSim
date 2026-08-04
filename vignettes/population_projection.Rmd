@@ -1,8 +1,8 @@
 ---
-title: "population_projection"
+title: "Examples on Population Projection (Germany) for the MicSim Package"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{population_projection}
+  %\VignetteIndexEntry{Examples on Population Projection (Germany) for the MicSim Package}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
