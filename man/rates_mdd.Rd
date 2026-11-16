@@ -3,15 +3,15 @@
 \docType{data}
 \name{rates_mdd}
 \alias{rates_mdd}
-\title{Rate Data for Simulation of MDD example}
+\title{Transition-rate data for the MDD example}
 \format{
 \subsection{\code{rates_mdd}}{
 
 A data frame with 49 rows and 17 columns:
 \describe{
-\item{age}{Age of individual}
-\item{incidence_lo_m}{Incidence Rates low education men}
-\item{cf_incidence_lo_f}{Counterfactual Incidence Rate low female}
+\item{age}{age of the individual}
+\item{incidence_lo_m}{incidence rate, low education, men}
+\item{cf_incidence_lo_f}{counterfactual incidence rate, low education, women}
 ...
 }
 }
@@ -23,6 +23,6 @@ https://doi.org/10.1093/eurpub/ckae066
 rates_mdd
 }
 \description{
-Data used to construct transition rates from @lepe2024
+Data used to construct transition rates for the MDD example.
 }
 \keyword{datasets}

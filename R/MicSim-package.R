@@ -1,0 +1,75 @@
+# =====================================================================
+# MicSim-package.R
+# ---------------------------------------------------------------------
+# WHAT THIS FILE DOES
+#   Provides the package-level help page and declares imports from stats.
+#   Model construction and simulation are implemented in the other R files.
+# =====================================================================
+
+#' MicSim: Continuous-Time Microsimulation of Individual Life Courses
+#'
+#' @description
+#' In the life sciences, microsimulation focuses on individual *life courses*.
+#' A life course is defined by the ordered sequence of states an individual
+#' occupies over time, together with the time spent in each state before
+#' moving to the next. Simulating the life courses of individuals in a
+#' representative synthetic population allows you to study population
+#' dynamics on a very detailed scale.
+#'
+#' MicSim represents a life course as a trajectory of a **continuous-time,
+#' time-inhomogeneous Markov multi-state process**. "Multi-state" means the
+#' process occupies, at every point in time, exactly one of a finite set of
+#' discrete states (for example `"f/DE/1"`: female, German, one child).
+#' "Time-inhomogeneous" means the transition rates may change continuously
+#' with time rather than being held constant over predefined intervals such
+#' as calendar years.
+#'
+#' @details
+#' Rates (also called transition intensities or hazard rates) are the key
+#' input. They are *not* probabilities: a rate is an instantaneous risk per
+#' unit of time and may exceed one. 
+#'
+#' A rate function can use any combination of three time scales, all of
+#' which advance together:
+#'
+#' \describe{
+#'   \item{age}{time since the individual's birth}
+#'   \item{calTime}{calendar time}
+#'   \item{duration}{time since the last change of the state variable that
+#'     the transition would change. For example, a smoking relapse rate
+#'     can use the time since the person quit during the simulation.}
+#' }
+#'
+#' All three are passed to rate functions in **fractional years**.
+#' Internally the package counts time in days since 1970-01-01: dates are
+#' whole days, while simulated events can fall at any point within a day;
+#' see [getInDays()].
+#'
+#' The package is organised in three layers:
+#'
+#' \describe{
+#'   \item{specification}{a validated, inspectable model object that
+#'     contains only data and computes nothing}
+#'   \item{engine}{the only component with mutable state and the only one
+#'     that runs the discrete-event loop}
+#'   \item{result}{a value object carrying the simulated population, the
+#'     model that produced it, the seed, and run diagnostics}
+#' }
+#'
+#' @references
+#' Zinn, S. (2014). The MicSim Package of R: An Entry-Level Toolkit for
+#' Continuous-Time Microsimulation. *International Journal of
+#' Microsimulation*, 7(3), 3-32. \doi{10.34196/IJM.00105}
+#'
+#' Zinn, S. (2011). *A Continuous-Time Microsimulation and First Steps
+#' Towards a Multi-Level Approach in Demography*. Dissertation, University
+#' of Rostock.
+#'
+#' @seealso [MicSim-concepts] for a glossary of the terms used throughout
+#'   the documentation.
+#'
+#' @keywords internal
+"_PACKAGE"
+
+#' @importFrom stats integrate runif simulate uniroot update
+NULL

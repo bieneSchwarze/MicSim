@@ -1,0 +1,349 @@
+---
+title: Introduction to MicSim 4.0.0
+output:
+  rmarkdown::html_vignette:
+    df_print: kable
+vignette: >
+  %\VignetteIndexEntry{Introduction to new MicSim 4.0.0}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+# The plots need the suggested package ggplot2; without it, the vignette
+# is built without running it.
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = FALSE,
+  eval = requireNamespace("ggplot2", quietly = TRUE),
+  fig.width  = 7,
+  fig.height = 4.5,
+  out.width  = "100%"
+)
+```
+
+## Introduction
+
+This vignette introduces MicSim’s model-object interface through an example that simulates first births, school enrolment and deaths. The fertility subsystem adds newborns to the population, and the school enrolment subsystem schedules enrolments on a school calendar. We specify the model components, build and validate the model, then run the simulation. 
+
+We use MicSim’s built-in functions to summarise the results, inspect individual transition histories and subsystem records, and compare rates estimated from the simulated life courses with the rates supplied to the model. The two companion vignettes apply the same workflow to migration flows and educational inequalities in depression.
+
+```{r libraries, warning=FALSE, message=FALSE}
+# Loading libraries
+library(MicSim)
+library(ggplot2)
+
+# Clearing the environment
+rm(list = ls())
+invisible(gc())
+```
+
+We set a random seed so that the synthetic population below is reproducible. You can change `SEED` to draw a different population.
+
+```{r setup_options}
+# Setting the random seed
+SEED <- 1234
+set.seed(SEED)
+```
+
+## Specify the model components
+
+We begin by setting the simulation period and age limits. We then define the states individuals can occupy, the starting population and the rates of the allowed transitions. Women can have a first child, children become eligible to enrol in primary school at age six, and mortality rates differ between men and women. Death is an absorbing state, so entering it ends an individual’s simulated life course.
+
+### Simulation framework
+
+The simulation starts with 1,000 synthetic adults. Change `N` to adjust the size of the starting population. The simulation horizon runs from 1 January 2000 to 31 December 2050, a period of approximately 51 years. Both dates are supplied in `yyyymmdd` format.
+
+We set `minage` to 18 and generate a starting population aged approximately 18 to 90 years. Children born during the simulation enter at age zero.
+
+The `maxage` setting controls the upper age limit for follow-up. With `maxage = 100`, MicSim uses an age cutoff of 99.99 years (`maxage - 0.01`). For anyone still alive at the age cutoff or the end date, whichever comes first, observation ends while their final episode is still in progress. This is called right censoring.
+
+`getInDays()` converts a `yyyymmdd` date to the number of days since 1 January 1970. Subtracting two converted dates gives the number of days between them, which we use below to confirm the length of the horizon.
+```{r simulation_framework}
+startDate <- 20000101 # yyyymmdd
+endDate   <- 20501231 # yyyymmdd
+simHorizon <- c(startDate, endDate)
+
+N <- 10000
+
+minage <- 18
+maxage <- 100
+
+sprintf("The simulation runs from %d to %d, which is %d days.", 
+        startDate, endDate, getInDays(endDate) - getInDays(startDate))
+```
+
+### State space
+
+`state_space()` defines the variables that describe an individual’s state and the values each variable can take. This model uses `sex` with values `"m"` and `"f"`, `fert` with values `"0"` and `"1"` for zero and one child, and `education` with values `"none"` before primary school enrolment and `"primary"` from enrolment onwards.
+
+Combining these values gives eight possible states. MicSim joins the values with `/` in the order supplied to `state_space()`. For example, `"f/0/primary"` describes a woman with no children who has enrolled in primary school. The model adds the absorbing state `"dead"` when we use it as a destination in the mortality transitions.
+
+```{r state_space}
+stateSpace <- state_space(
+  sex = c("m", "f"),
+  fert = c("0", "1"),
+  education = c("none", "primary")
+)
+
+stateSpace
+```
+
+### Initial population
+
+The initial population is a data frame with one row per individual and three columns in this order. `ID` is a unique whole-number identifier, `birthDate` is the date of birth in `yyyymmdd` format, and `initState` is the individual’s state at the start of the simulation.
+
+Our population is synthetic; in most cases you would likely have your own population to supply. To generate the birth dates, we first use `getInDays()` to express the simulation start date as a count of days since 1 January 1970. We subtract the day equivalents of 90 years and `minage` from the start date to obtain the earliest and latest birth dates, using 365.25 days per year. We then draw `N` values uniformly between these bounds and use `getInDateFormat()` to convert them to `yyyymmdd`. Both date helpers follow the Gregorian calendar and adapt [Howard Hinnant’s date conversion algorithms](https://howardhinnant.github.io/date_algorithms.html).
+
+To construct `initState`, we sample sex for each individual and randomly assign women to have zero or one child. Men start with `fert = "0"`. We assume all adults in the initial population have already enrolled in primary school, so they start with `education = "primary"`.
+
+```{r initial_population}
+birthDates <- runif(N,
+  min = getInDays(startDate) - round(90 * 365.25),
+  max = getInDays(startDate) - round(minage * 365.25)
+) |>
+  getInDateFormat()
+
+sex  <- sample(stateSpace$sex, N, replace = TRUE)
+fert <- ifelse(sex == "f", sample(stateSpace$fert, N, replace = TRUE), "0")
+
+initPop <- data.frame(
+  ID        = seq_len(N),
+  birthDate = birthDates,
+  initState = paste(sex, fert, "primary", sep = "/")
+)
+
+head(initPop)
+```
+
+To plot the age distribution at the start date, we first convert birth dates to ages with `getAgeInDays()`. A `yyyymmdd` date is not a number on a continuous scale (19731231 is followed by 19740101), so it should not be plotted directly. Because the birth dates are drawn uniformly, the age distribution is roughly flat.
+
+```{r initial_population_plot}
+  initAges <- data.frame(
+    age = getAgeInDays(startDate, initPop$birthDate) / 365.25,
+    sex = factor(sub("/.*", "", initPop$initState), levels = c("f", "m"),
+             labels = c("Female", "Male"))
+  )
+
+  ggplot(initAges, aes(x = age, fill = sex)) +
+    geom_histogram(binwidth = 5, boundary = minage, position = "dodge") +
+    labs(x = "Age at the start of the simulation", y = "Count",
+         fill = "Sex", title = "Initial population") +
+    theme_minimal()
+```
+
+### Transition rates
+
+A transition rate can be constant or depend on age (`age`), calendar time (`calTime`), time since the relevant state variable last changed (`duration`), or any combination of these. All three inputs use years of 365.25 days.
+
+For a constant rate, you can use a function with no arguments. For example, `function() 0.1` gives a constant rate of 0.1 per person-year. Functions that take time inputs must be vectorised, returning one rate for each set of input values.
+
+#### Mortality
+
+The two mortality rates depend only on age. They follow a Gompertz curve, \(\mu(a) = \alpha e^{\beta a}\), where \(a\) is age. Both rates increase with age, and mortality is higher for men than for women. The same curves apply to children born during the simulation, so they face a very low but nonzero risk of dying in childhood.
+
+```{r mortality rate}
+mortMale   <- function(age) 0.00005 * exp(0.095 * age)
+mortFemale <- function(age) 0.00002 * exp(0.098 * age)
+
+# Plot the rates
+  age <- seq(0, 100, 0.5)
+  ggplot() +
+    geom_line(aes(x = age, y = mortMale(age), color = "Male")) +
+    geom_line(aes(x = age, y = mortFemale(age), color = "Female")) +
+    labs(x = "Age", y = "Mortality rate", colour = "Sex",
+         title = "Mortality rates") +
+    theme_minimal()
+
+```
+
+#### Fertility
+
+`fertRate()` gives the rate of a first birth as a function of age and calendar time. It uses a Hadwiger-shaped age profile, 
+$$
+f(a) = \frac{b}{c} \left(\frac{c}{a}\right)^{3/2} \exp\left\{-b^2 \left(\frac{c}{a} + \frac{a}{c} - 2\right)\right\},
+$$
+where $a$ is age, $c$ sets the location of the peak and $b$ its sharpness. The rate is zero at ages 15 and below and 45 and up. The function uses $b = 3.5, c = 28$ when calTime <= 2020 and $b = 3.0, c = 29$ when calTime > 2020, resulting in first births after 2020 coming slightly later and being more spread out.
+
+```{r fertility rate}
+fertRate <- function(age, calTime) {
+  b <- ifelse(calTime <= 2020, 3.5, 3.0)
+  c <- ifelse(calTime <= 2020, 28, 29)
+  rate <- (b / c) * (c / age)^(3/2) * exp(-b^2 * (c/age + age/c - 2))
+  rate[age <= 15 | age >= 45] <- 0
+  rate
+}
+
+age <- seq(15, 45, 0.25)
+ggplot() +
+  geom_line(aes(x = age, y = fertRate(age, 2010), colour = "Until 2020")) +
+  geom_line(aes(x = age, y = fertRate(age, 2030), colour = "After 2020")) +
+  labs(x = "Age", y = "First-birth rate", colour = "Period",
+       title = "First-birth rates") +
+  theme_minimal()
+```
+
+#### School enrolment
+
+`enrolRate()` returns zero before age six and `Inf` from age six onwards. MicSim treats an infinite rate as a forced transition. The school enrolment subsystem adjusts the candidate enrolment date to the school calendar.
+
+```{r school_enrolment_rate}
+enrolRate <- function(age) ifelse(age == 6, Inf, 0)
+```
+
+### Transitions
+
+Each `transition()` call specifies the origin state (`from`), the destination state (`to`) and the rate function (`rate`). Pass the function directly, as in `rate = mortMale`.
+
+For mortality, we list the full origin state labels and use `"dead"` as the destination. Because this label is outside the state space, MicSim recognises it as an absorbing state when it builds the model. All states for the same sex share a mortality rate, so we group those origins in one declaration. If there is only one mortality rate for everyone you can use `from = NA` to cover all origins in one declaration.
+
+For first birth and school enrolment, we use `move()` to specify which state variable changes, instead of listing every origin and destination state variable. We pass each selector to `transition()` and reuse it in `fertility()` or `school_enrolment()` to tell the subsystem which declared transitions to act on. MicSim carries the other state values into the destination.
+
+`birthEdge` changes `fert` from `"0"` to `"1"` for female states at either education level. `enrolEdge` changes `education` from `"none"` to `"primary"` for all combinations of sex and fertility. In this example, children enrol before they reach first-birth ages. Enrolments therefore occur with `fert = "0"`, and first births move women from `"f/0/primary"` to `"f/1/primary"`.
+
+The final lines use `do.call()` to pass each declaration as a separate argument to `transitions()`, which collects them into one object for `micsim_model()`.
+
+```{r transitions}
+mortTransitions_m <- transition(
+  from = c("m/0/none", "m/0/primary"),
+  to = "dead",
+  rate = mortMale
+)
+
+mortTransitions_f <- transition(
+  from = c("f/0/none", "f/0/primary", "f/1/none", "f/1/primary"),
+  to = "dead",
+  rate = mortFemale
+)
+
+birthEdge <- move("fert", from = "0", to = "1", where = sex == "f")
+enrolEdge <- move("education", from = "none", to = "primary")
+
+fertTransition <- transition(birthEdge, rate = fertRate)
+enrolTransition <- transition(enrolEdge, rate = enrolRate)
+
+all_transitions <- transitions(
+  fertTransition,
+  enrolTransition,
+  mortTransitions_m,
+  mortTransitions_f
+)
+```
+
+## Build the model and add the subsystems
+
+`micsim_model()` brings together the state space, transitions, initial population, simulation horizon and maximum age. It checks that the state labels fit the model, checks the rate functions’ arguments and probes the length of their output. The named vector `exits` assigns the exit type `"death"` to the absorbing state `"dead"`.
+
+To set up the fertility subsystem, we use `newborn_rule()` to define each newborn’s starting state. The rule assigns `sex = "m"` with probability 0.515 or `sex = "f"` with probability 0.485. Every newborn starts with `fert = "0"` and `education = "none"`. We pass the newborn rule and `birthEdge` to `fertility()` so MicSim adds a newborn whenever one of the first-birth transitions occurs.
+
+We pass `enrolEdge` to `school_enrolment()` and set `month = 9L`. If the age-six candidate falls from January through September, the subsystem schedules enrolment for 1 September of the same year. If it falls from October through December, it uses 1 September of the following year. A late-September candidate can move to the first of that month, so some children enrol shortly before turning six. An enrolment is recorded if the child survives to the adjusted date and that date falls within the simulation horizon.
+
+We attach both subsystems to the model using `add_subsystem()`.
+
+```{r model}
+newborn <- newborn_rule(
+  sex       = c(m = 0.515, f = 0.485),
+  fert      = "0",
+  education = "none"
+)
+
+model <- micsim_model(
+  state_space = stateSpace,
+  transitions = all_transitions,
+  population  = initPop,
+  horizon     = simHorizon,
+  max_age     = maxage,
+  exits       = c(dead = "death")
+) |>
+  add_subsystem(fertility(births = birthEdge, newborn = newborn)) |>
+  add_subsystem(school_enrolment(transition = enrolEdge, month = 9L))
+
+model
+```
+
+## Validate and run the model
+
+`validate()` evaluates every rate over all ages and calendar years the simulation can reach. It stops if it encounters an error, and lists all rates that fail, return `NA` or a negative value anywhere (see documentation of `validate()` for details). `Inf` is allowed for forced transitions such as school enrolment. This step makes sure that we simulate only well-defined models. It is optional, but we strongly recommend running `validate()` before `simulate()` to catch errors early. If there are no errors, `validate()` returns the model invisibly, so it fits into the pipeline before `simulate()`.
+
+Setting a seed in `simulate()` lets you reproduce the results with the same inputs, on any number of cores. The `seed` argument is optional but strongly recommended for both single-core and parallel runs. If you set a seed to generate the initial population, we recommend using a different one for the simulation. Here we use `SEED + 1L`, where `SEED` is the seed used to generate the initial population.
+
+```{r simulate}
+result <- model |>
+  validate() |>
+  simulate(seed = SEED + 1L, cores = 1L)
+
+result
+```
+
+## Results
+
+`summary()` counts the recorded transitions, summarises the ages at which they occurred and shows how many people ended observation in each state. 
+
+Most people at the end of the simulation are dead. This is expected, because we only add people through our fertility, which only models first births and not higher parities. Thus, our population shrinks over the 51 year run.
+
+```{r summary}
+summary(result)
+```
+
+The subsystem reports are in `result$extensions`. The fertility report includes the state assigned to each newborn in `childState`. The school enrolment report counts completed enrolments and records each child’s age and date of enrolment. Compare `drawnDate`, the candidate date from the age-six rate, with `date`, the date after the calendar adjustment. `shiftDays` gives the difference in days.
+A negative value means the child enrolled before turning six.
+
+```{r subsystem_reports}
+head(result$extensions$fertility$births)
+
+enrolment <- result$extensions$school_enrolment
+enrolment$n_enrolments
+head(enrolment$enrolments)
+```
+
+`as.data.frame()` returns one row per transition, and one row for each individual with no transition at all.
+Those individuals have `NA` in the transition columns, as never experienced a transition until the end of the simulation was reached and are still in their initial state. They are censored.
+
+```{r population}
+pop <- as.data.frame(result)
+head(pop)
+```
+
+To calculate mean age at death by sex, we select transitions to `"dead"` and extract sex from the origin state labels. The resulting means include only individuals who died during the simulation, so they also depend on the age structure of the starting population. Because men have higher mortality rates, we expect their mean age at death to be lower than that of women:
+
+```{r age_at_death}
+deaths <- pop[pop$To %in% "dead", ]
+tapply(deaths$transitionAge, sub("/.*", "", deaths$From), mean)
+```
+
+## Re-estimating the rates
+
+By default, `simulate()` estimates transition rates from the simulated life courses. Within each age band, it divides the number of transitions by the person-years spent in the relevant origin states. For the first-birth rate, this means dividing the number of first births by the time spent in `"f/0"`. The estimates are stored in `result$reestimation`.
+
+```{r reestimation}
+result$reestimation
+```
+
+Convert the re-estimation to a data frame to inspect the estimates by age band. The code below displays the first bands with at least one event.
+
+```{r reestimation_bands}
+bands <- as.data.frame(result$reestimation)
+head(bands[bands$events > 0, ])
+```
+
+`plot()` draws one figure per declared transition. The left panel shows the supplied rate. The right panel shows what was recovered from the simulation:
+
+* the band estimates, with point size reflecting person-years, and their 95% intervals;
+* a smooth Poisson-spline fit with its 95% band;
+* the supplied rate as a dashed reference line.
+
+Mortality rates is defined via exponential function, so the y axis is logarithmic. This can be explicitly set by using the argument `log = TRUE` in `plot()`.
+
+```{r reestimation_plot, fig.width = 11, fig.height = 5.5}
+  plot(result)
+```
+
+Use `reestimate()` to recalculate the rates from the same simulated life courses with different settings. For example, `width = 5` groups the estimates into five-year age bands.
+
+```{r reestimation_width}
+reestimate(result, width = 5)
+```
+
+## Conclusion
+
+This vignette covered a full MicSim workflow. We went from defining a state space, an initial population and transition rates to building a model with `micsim_model()` and adding subsystems. Then we validated and simulated our model. Lastly, we checked the results against the rates we supplied initially. The two companion vignettes apply the same workflow to migration flows and to educational inequalities in depression. 

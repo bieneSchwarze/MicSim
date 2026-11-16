@@ -1,61 +1,58 @@
-#' Initial Population Data for Examples on Simulating Migration Flows
+#' Immigrant population data for the migration-flow examples
 #'
-#' Data used to construct initial population for Migration Flow Vignette
-#'
+#' Entrants arriving after the simulation start, used in the migration-flow
+#' vignette.
 #'
 #' @format ## `immigrPopMigrExp`
 #' A data frame with 3758 rows and 4 columns:
 #' \describe{
-#'   \item{ID}{ID of Individual}
-#'   \item{immigrDate}{Immigration Date}
-#'   \item{birthDate}{Birth Date}
-#'   \item{immigrInitState}{initial State of Individual as per stateSpace}
+#'   \item{ID}{individual identifier}
+#'   \item{immigrDate}{immigration date}
+#'   \item{birthDate}{birth date}
+#'   \item{immigrInitState}{initial state of the individual, as per the state space}
 #' }
 
 "immigrPopMigrExp"
 
-#' Immigrant Population Data for Examples on Simulating Migration Flows
+#' Initial population data for the migration-flow examples
 #'
-#' Data used to construct initial immigrant population for Migration Flow Vignette
-#'
+#' Starting population used in the migration-flow vignette.
 #'
 #' @format ## `initPopMigrExp`
 #' A data frame with 72965 rows and 3 columns:
 #' \describe{
-#'  \item{ID}{Id of Individual}
-#'  \item{birthDate}{Birth Date}
-#'  \item{immigrInitState}{initial State of Individual as per stateSpace}
+#'  \item{ID}{individual identifier}
+#'  \item{birthDate}{birth date}
+#'  \item{initState}{initial state of the individual, as per the state space}
 #' }
 
 "initPopMigrExp"
 
-#' Rate Data for Examples on Simulating Migration Flows
+#' Transition-rate data for the migration-flow examples
 #'
-#' Data used to construct transition rates for Migration Flow Vignette
-#'
+#' Data used to construct transition rates in the migration-flow vignette.
 #'
 #' @format ## `migrExpRates`
 #' A data frame with 100 rows and 30 columns:
 #' \describe{
-#'   \item{mort_f_ES}{Mortality Rate for females from Spain}
-#'   \item{mort_f_NL}{Mortality Rate for females from the Netherlands}
-#'   \item{mort_f_SE}{Mortality Rate for females from Swedem}
+#'   \item{mort_f_ES}{mortality rate for females from Spain}
+#'   \item{mort_f_NL}{mortality rate for females from the Netherlands}
+#'   \item{mort_f_SE}{mortality rate for females from Sweden}
 #'   ...
 #' }
 
 "migrExpRates"
 
-#' Rate Data for Simulation of MDD example
+#' Transition-rate data for the MDD example
 #'
-#' Data used to construct transition rates from @lepe2024
-#'
+#' Data used to construct transition rates for the MDD example.
 #'
 #' @format ## `rates_mdd`
 #' A data frame with 49 rows and 17 columns:
 #' \describe{
-#'   \item{age}{Age of individual}
-#'   \item{incidence_lo_m}{Incidence Rates low education men}
-#'   \item{cf_incidence_lo_f}{Counterfactual Incidence Rate low female}
+#'   \item{age}{age of the individual}
+#'   \item{incidence_lo_m}{incidence rate, low education, men}
+#'   \item{cf_incidence_lo_f}{counterfactual incidence rate, low education, women}
 #'   ...
 #' }
 #' @source https://doi.org/10.1093/eurpub/ckae066

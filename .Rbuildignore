@@ -1,2 +1,14 @@
-^.*\.Rproj$
+^dev$
+^\.github$
 ^\.Rproj\.user$
+^.*\.Rproj$
+^_pkgdown\.yml$
+^docs$
+^\.lintr$
+^codecov\.yml$
+^cran-comments\.md$
+^README\.Rmd$
+^\.DS_Store$
+^doc$
+^Meta$
+^figure$

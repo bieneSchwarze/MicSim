@@ -1,0 +1,363 @@
+---
+title: "Examples on Simulating Migration Flows for the MicSim Package"
+output: rmarkdown::html_vignette
+bibliography: references.bib
+vignette: >
+  %\VignetteIndexEntry{Examples on Simulating Migration Flows for the MicSim Package}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  error = FALSE
+)
+```
+
+This vignette uses the model-object interface to simulate moves among the Netherlands, Spain and Sweden, following the migration example in @bosco2024. The model also includes births, deaths and people entering or leaving the study area. We build and run the model on a small sample for the sake of computational efficiency. However, MicSim can also handle larger numbers of cases. Larger models can also be run using multiple CPUs for more efficiency.
+
+The example uses Eurostat data prepared by Claudio Bosco, Daniela Ghio and Maurizio Teobaldelli (European Commission) and Sabine Zinn (German Socio-Economic Panel, Humboldt University Berlin). For more information consult @bosco2024. We keep the data in this example as published and only adjust them where MicSim 4.0.0 requires it.
+```{r}
+# Load library
+library(MicSim)
+```
+
+## Definition of Basic Simulation Frame
+
+The simulation runs from 1 January 2014 to 31 December 2018 with a maximum age of 100. The state variables record sex (`sex`), country of residence (`country_R`) and parity (`fert`, the number of children already born). State labels follow the order of the variables in `state_space()`. For example, `"f/ES/2"` describes a woman living in Spain with parity two. 
+Parity is only recorded for women aged 15 to 49, the age range covered by the fertility data in @bosco2024. Everyone outside that range, including children, has the value `"999"`, and men aged 15 to 49 have `"0"`. There are no transitions out of `"999"`, so girls who turn 15 during the four simulation years cannot give birth. 
+
+```{r}
+# Defining simulation horizon
+startDate <- 20140101 # yyyymmdd
+endDate   <- 20181231 # yyyymmdd
+simHorizon <- c(startDate, endDate)
+
+# Definition of max age
+maxAge <- 100
+
+sex       <- c("m", "f")
+country_R <- c("NL", "ES", "SE")
+fert      <- c("0", "1", "2", "3", "4+", "999")
+
+stateSpace <- state_space(sex = sex, country_R = country_R, fert = fert)
+```
+
+```{r}
+stateSpace
+```
+
+## Definition of initial population and newborn characteristics
+
+`initPopMigrExp` describes the people present at the start of the simulation. `immigrPopMigrExp` describes the people who enter later, including their arrival date and their state on arrival. Both datasets are simply loaded from within the package.
+
+```{r setup}
+# initial population 
+initPop <- initPopMigrExp
+head(initPop)
+
+# population of immigrants entering to virtual population over simulation time
+immigrPop <- immigrPopMigrExp
+head(immigrPop)
+```
+
+### Check the dates before anything else
+
+MicSim requires valid Gregorian dates. `getInDays()` returns `NA` for invalid dates, so we use it to find invalid birth and arrival dates before building the model. 
+
+The example data are kept as published in @bosco2024. They were built with the date arithmetic of earlier MicSim versions, which approximated a month as 30.42 days and so produced some dates that do not exist, such as 30 February. Since version 4.0.0, MicSim works with exact calendar dates, so these dates have to be repaired first.
+
+```{r}
+bad_in <- function(dates) which(is.na(getInDays(dates)))
+
+# The number of invalid dates and a few examples
+c(birth          = length(bad_in(initPop$birthDate)),
+  immigrant_birth = length(bad_in(immigrPop$birthDate)),
+  arrival         = length(bad_in(immigrPop$immigrDate)))
+head(initPop$birthDate[bad_in(initPop$birthDate)])
+```
+
+For the example data, we keep the recorded year and month and move an invalid day back to the last valid day of that month. For example, 29 February in a non-leap year becomes 28 February. The repaired dates are an assumption for this example.
+
+```{r}
+repair_dates <- function(dates) {
+  dates <- as.character(dates)
+  for (i in bad_in(dates)) {
+    year  <- as.integer(substr(dates[i], 1, 4))
+    month <- as.integer(substr(dates[i], 5, 6))
+    day   <- as.integer(substr(dates[i], 7, 8))
+    while (day > 1L &&
+             is.na(getInDays(sprintf("%04d%02d%02d", year, month, day)))) {
+      day <- day - 1L
+    }
+    dates[i] <- sprintf("%04d%02d%02d", year, month, day)
+  }
+  if (length(bad_in(dates)) > 0L) {
+    stop("Some dates could not be repaired by stepping the day back: ",
+         toString(dates[bad_in(dates)]))
+  }
+  dates
+}
+
+initPop$birthDate   <- repair_dates(initPop$birthDate)
+immigrPop$birthDate <- repair_dates(immigrPop$birthDate)
+immigrPop$immigrDate <- repair_dates(immigrPop$immigrDate)
+
+# Nothing left to complain about.
+c(length(bad_in(initPop$birthDate)),
+  length(bad_in(immigrPop$birthDate)),
+  length(bad_in(immigrPop$immigrDate)))
+```
+
+## Newborn states
+
+`new_newborn_rule()` takes a table of possible newborn states and their probabilities. Every newborn starts with parity zero. With `inherit = 2`, MicSim selects the rows that match the mother's country of residence, the second state variable. The sex probabilities vary by country, so the table supplies a pair of probabilities that add to one for each country. Use `newborn_rule()` when each variable can be set or sampled separately.
+
+```{r}
+newbornRule <- new_newborn_rule(
+  # List each possible newborn state in the model's variable order.
+  states = rbind(
+    c("m", "ES", "0"), c("f", "ES", "0"),
+    c("m", "NL", "0"), c("f", "NL", "0"),
+    c("m", "SE", "0"), c("f", "SE", "0")
+  ),
+  # Sex ratios, given separately per country.
+  prob = c(0.5151, 0.4849,
+           0.5124, 0.4876,
+           0.5146, 0.4854),
+  # Inherit the second state variable, country of residence.
+  inherit = 2
+)
+
+newbornRule
+```
+
+## Rates Definition
+
+The package includes the rate table `migrExpRates`, with one column for each rate and one row for each year of age, starting at zero. Rates are measured per person-year. The age range covers newborns and extends up to the oldest age band used in the simulation. We check the dimensions and the number of missing entries before creating rate functions.
+
+In a typical example, you have to define the rates yourself. For examples of how to define your own rate functions, see the Transition rates section of the Introduction to MicSim 4.0.0 vignette: `vignette("introduction-to-new-micsim", package = "MicSim")`.
+
+```{r}
+rates <- migrExpRates
+
+# Worth looking at before building a model: how far do the tables reach,
+# and are there gaps?
+dim(rates)
+sum(is.na(rates))
+```
+
+`rate_from_age_vector()` creates one function per column. Each function accepts `age` and `calTime` and uses age to look up the rate. For example, the age-20 row applies from age 20 to just under 21. The lookup returns zero for missing entries or ages outside the table, which treats the risk of the transition as zero at those ages.
+
+```{r}
+# Turn a vector of age-specific rates into a MicSim rate function.
+rate_from_age_vector <- function(vec, first_age = 0) {
+  vec <- as.numeric(vec)
+  vec[is.na(vec)] <- 0          # no data for that age means no risk
+  force(vec)
+  force(first_age)
+
+  function(age, calTime) {
+    i   <- as.integer(age) - first_age + 1L
+    out <- rep(0, length(i))
+    within_table <- i >= 1L & i <= length(vec)
+    out[within_table] <- vec[i[within_table]]
+    out
+  }
+}
+
+# One rate function per column of the data, keyed by column name.
+rateFn <- rates |>
+  as.list() |>
+  lapply(rate_from_age_vector)
+
+head(names(rateFn), 10)
+```
+
+## Transitions
+
+`transition()` links an origin state and a destination state to a rate function. Here we create lists of transitions for fertility, moves between the three countries, death and emigration. Importantly, `transition()` takes the rate **function**, not its name.
+
+### Fertility
+
+Each fertility transition advances a woman by one parity category within her country of residence. For example, a first birth in Spain moves the mother from `"f/ES/0"` to `"f/ES/1"`. The rate can vary by age, country and current parity.
+
+```{r}
+fertSteps <- cbind(
+  from = c("0", "1", "2", "3"),
+  to   = c("1", "2", "3", "4+")
+)
+
+fertTransitions <- country_R |>
+  lapply(function(cty) {
+    lapply(seq_len(nrow(fertSteps)), function(k) {
+      from <- fertSteps[k, "from"]
+      to <- fertSteps[k, "to"]
+      parity <- as.integer(from)
+      rateName <- sprintf("fert_%s_%d_%d", cty, parity, parity + 1L)
+
+      transition(
+        move("fert", from = from, to = to,
+             where = sex == "f" & country_R == cty),
+        rate = rateFn[[rateName]]
+      )
+    })
+  }) |>
+  unlist(recursive = FALSE)
+
+length(fertTransitions)
+```
+
+### Moves between countries
+
+For each pair of countries, `move()` changes only the country of residence and keeps sex and parity, so one declaration covers every combination of sex and parity. For example, `"f/ES/2"` moves to `"f/NL/2"` when a woman of parity two moves from Spain to the Netherlands.
+
+```{r}
+
+migrPairs <- expand.grid(
+  from = country_R,
+  to = country_R,
+  stringsAsFactors = FALSE
+)
+migrPairs <- migrPairs[migrPairs$from != migrPairs$to, ]
+
+migrTransitions <- lapply(seq_len(nrow(migrPairs)), function(k) {
+  origin <- migrPairs$from[k]
+  destination <- migrPairs$to[k]
+  rateName <- sprintf("rate_%s_%s", origin, destination)
+  
+  transition(
+    move("country_R", from = origin, to = destination),
+    rate = rateFn[[rateName]]
+  )
+})
+
+length(migrTransitions)
+
+```
+
+### Mortality and emigration
+
+Death and emigration take individuals to the absorbing states `"dead"` and `"rest"`, respectively. Entering either state ends the individual's simulated life course. For each combination of sex and country, one mortality rate and one emigration rate apply across all parity categories.
+
+```{r}
+absorbingTransitions <- expand.grid(sex = sex, country_R = country_R,
+                                    stringsAsFactors = FALSE) |>
+  split(~ sex + country_R) |>
+  lapply(function(row) {
+    origins <- paste(row$sex, row$country_R, fert, sep = "/")
+    list(
+      transition(origins, "dead",
+                 rateFn[[sprintf("mort_%s_%s", row$sex, row$country_R)]]),
+      transition(origins, "rest",
+                 rateFn[[sprintf("emig_%s_%s", row$sex, row$country_R)]])
+    )
+  }) |>
+  unlist(recursive = FALSE) |>
+  unname()
+
+length(absorbingTransitions)
+```
+
+### Transitions triggering a birth event
+
+A fertility transition changes the mother's parity. To add the child to the population at the same event, we pass the labels of those transitions to `fertility()` along with the newborn rule.
+
+```{r}
+fertTr <- moves_of("fert")
+
+fertTr
+```
+
+### Build the model
+
+Everything above comes together in one object. Building it resolves every rate against the state space and checks its shape, so a typo in a state label is an error here rather than three minutes into a run.
+
+Fertility is not an ordinary transition, because it brings a new person into the population. It is added to the model as a *subsystem*: `fertility()` names the transitions that create a child and the rule for the child's state, and `add_subsystem()` checks both against the model.
+
+```{r}
+model <- micsim_model(
+  state_space = stateSpace,
+  transitions = do.call(
+    transitions,
+    c(fertTransitions, migrTransitions, absorbingTransitions)
+  ),
+  # For illustration purpose, the run is limited to the first 500 people and
+  # to 100 migrants. Just remove the restriction to run the whole sample,
+  # i.e. use `initPop` instead of `initPop[1:500, ]`.
+  population  = initPop[1:500, ],
+  immigrants  = immigrPop[1:100, ],
+  horizon     = simHorizon,
+  max_age     = maxAge,
+  exits       = c(dead = "death", rest = "emigration")
+) |>
+  add_subsystem(fertility(births = fertTr, newborn = newbornRule))
+
+model
+```
+
+## Run Simulation (using one core)
+
+`validate()` checks rate values and stops if it encounters an error, and lists all rates that fail, return `NA` or a negative value anywhere (see documentation of `validate()` for details). After a successful check, it returns the model to pass to `simulate()`. We set a seed so the run can be repeated with these settings.
+
+```{r}
+result <- model |>
+  validate() |>
+  simulate(seed = 12)
+
+result
+```
+For reestimation, the observed/expected ratios vary widely as we only simulate 500 people over five years, so some transitions only occur a few times.
+`as.data.frame()` extracts the transition history. Each recorded transition has its own row. An individual with no transitions has one row with missing transition fields.
+
+```{r}
+pop <- result |> as.data.frame()
+head(pop)
+```
+
+## Explore the results
+
+### Convert to long format
+
+`as_long()` gives one row per episode spent in a state. `Tstart` and `Tstop` give the dates, and `statusEntry` and `statusExit` indicate whether the episode's start and end were observed. For immigrants, the first episode starts on the recorded arrival date. Because of the model object, `as_long()` does not require any arguments. 
+
+```{r}
+popLong <- result |> as_long()
+head(popLong)
+```
+
+### Convert to wide format
+
+`as_wide()` puts each individual's transitions on one row. The numbered columns give the origin, destination, date and age for successive transitions.
+
+```{r}
+popWide <- result |> as_wide()
+head(popWide)
+```
+
+### Summarising a run
+
+`summary()` reports counts and ages at transition, along with the distribution of states at the end of observation.
+
+```{r}
+result |> summary()
+```
+
+## Run Simulation with parallel computing on several cores
+
+`update()` replaces the samples with the full starting and immigrant populations. With `cores = 2`, MicSim splits the people across two workers. Every individual draws from their own random-number stream, so the result is the same as with `cores = 1` and the same seed. Use the same seed to repeat the run. For a large population, the time saved by splitting the work can outweigh the time spent starting workers and transferring data.
+
+```{r}
+fullModel <- update(model, population = initPop, immigrants = immigrPop)
+
+popParallel <- fullModel |>
+  simulate(seed = 34, cores = 2) |>
+  as.data.frame()
+
+head(popParallel)
+```

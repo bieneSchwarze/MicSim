@@ -2,4 +2,16 @@
 .Rhistory
 .RData
 .Ruserdata
+*.Rproj
 .DS_Store
+docs/
+..Rcheck/
+*.tar.gz
+dev/parity/output/
+/Meta/
+doc/
+Meta/
+figure/
+dev/diagram/*.aux
+dev/diagram/*.log
+dev/diagram/*.synctex.gz
