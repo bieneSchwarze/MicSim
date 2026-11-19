@@ -57,7 +57,7 @@ stateSpace
 `initPopMigrExp` describes the people present at the start of the simulation. `immigrPopMigrExp` describes the people who enter later, including their arrival date and their state on arrival. Both datasets are simply loaded from within the package.
 
 ```{r setup}
-# initial population 
+# initial population
 initPop <- initPopMigrExp
 head(initPop)
 
@@ -230,7 +230,7 @@ migrTransitions <- lapply(seq_len(nrow(migrPairs)), function(k) {
   origin <- migrPairs$from[k]
   destination <- migrPairs$to[k]
   rateName <- sprintf("rate_%s_%s", origin, destination)
-  
+
   transition(
     move("country_R", from = origin, to = destination),
     rate = rateFn[[rateName]]

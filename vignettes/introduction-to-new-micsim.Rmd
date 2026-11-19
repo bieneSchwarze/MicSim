@@ -147,13 +147,13 @@ mortMale   <- function(age) 0.00005 * exp(0.095 * age)
 mortFemale <- function(age) 0.00002 * exp(0.098 * age)
 
 # Plot the rates
-  age <- seq(0, 100, 0.5)
-  ggplot() +
-    geom_line(aes(x = age, y = mortMale(age), color = "Male")) +
-    geom_line(aes(x = age, y = mortFemale(age), color = "Female")) +
-    labs(x = "Age", y = "Mortality rate", colour = "Sex",
-         title = "Mortality rates") +
-    theme_minimal()
+age <- seq(0, 100, 0.5)
+ggplot() +
+  geom_line(aes(x = age, y = mortMale(age), color = "Male")) +
+  geom_line(aes(x = age, y = mortFemale(age), color = "Female")) +
+  labs(x = "Age", y = "Mortality rate", colour = "Sex",
+       title = "Mortality rates") +
+  theme_minimal()
 
 ```
 
@@ -169,7 +169,7 @@ where $a$ is age, $c$ sets the location of the peak and $b$ its sharpness. The r
 fertRate <- function(age, calTime) {
   b <- ifelse(calTime <= 2020, 3.5, 3.0)
   c <- ifelse(calTime <= 2020, 28, 29)
-  rate <- (b / c) * (c / age)^(3/2) * exp(-b^2 * (c/age + age/c - 2))
+  rate <- (b / c) * (c / age)^(3 / 2) * exp(-b^2 * (c / age + age / c - 2))
   rate[age <= 15 | age >= 45] <- 0
   rate
 }
@@ -335,7 +335,7 @@ head(bands[bands$events > 0, ])
 Mortality rates is defined via exponential function, so the y axis is logarithmic. This can be explicitly set by using the argument `log = TRUE` in `plot()`.
 
 ```{r reestimation_plot, fig.width = 11, fig.height = 5.5}
-  plot(result)
+plot(result)
 ```
 
 Use `reestimate()` to recalculate the rates from the same simulated life courses with different settings. For example, `width = 5` groups the estimates into five-year age bands.
@@ -346,4 +346,4 @@ reestimate(result, width = 5)
 
 ## Conclusion
 
-This vignette covered a full MicSim workflow. We went from defining a state space, an initial population and transition rates to building a model with `micsim_model()` and adding subsystems. Then we validated and simulated our model. Lastly, we checked the results against the rates we supplied initially. The two companion vignettes apply the same workflow to migration flows and to educational inequalities in depression. 
+This vignette covered a full MicSim workflow. We went from defining a state space, an initial population and transition rates to building a model with `micsim_model()` and adding subsystems. Then we validated and simulated our model. Lastly, we checked the results against the rates we supplied initially. The two companion vignettes apply the same workflow to migration flows and to educational inequalities in depression.

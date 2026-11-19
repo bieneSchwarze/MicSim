@@ -2,15 +2,29 @@ Package: MicSim
 Type: Package
 Title: Performing Continuous-Time Microsimulation
 Version: 4.0.0
-Date: 2026-11-16
+Date: 2026-11-18
 Authors@R: c(
-    person("Sabine", "Zinn", email = "szinn@diw.de", role = c("aut", "cre")),
-    person("Felix", "von Heusinger", email = "fvonheusinger@diw.de", role = "ctb"),
-    person("Camila", "Weber", email = "cweber@diw.de", role = "ctb"),
-    person("Jedrzej", "Slowinski", email = "jslowinski@diw.de", role = "ctb"),
-    person("Claudio", "Bosco", email = "Claudio.BOSCO@ec.europa.eu", role = "ctb"),
-    person("Maurizio", "Teobaldelli", email = "Maurizio.TEOBALDELLI@ext.ec.europa.eu",
-           role = "ctb"))
+    person("Sabine", "Zinn",
+           email = "szinn@diw.de",
+           role = c("aut", "cre")),
+    person("Felix", "von Heusinger",
+           email = "fvonheusinger@diw.de",
+           role = "ctb"),
+    person("Jedrzej", "Slowinski",
+           email = "jslowinski@diw.de",
+           role = "ctb"),
+    person("Camila", "Weber",
+           email = "cweber@diw.de",
+           role = "ctb"),
+    person("Claudio", "Bosco",
+           email = "Claudio.BOSCO@ec.europa.eu",
+           role = "ctb",
+           comment = "Contributed to an earlier version of one of the vignettes and its associated code."),
+    person("Maurizio", "Teobaldelli",
+           email = "Maurizio.TEOBALDELLI@ext.ec.europa.eu",
+           role = "ctb",
+           comment = "Contributed to an earlier version of one of the vignettes and its associated code.")
+    )
 Description: Performs continuous-time microsimulation for life-science
     applications in demography, the social sciences and epidemiology.
     Individual life courses are represented as trajectories of a
